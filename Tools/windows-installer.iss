@@ -34,9 +34,11 @@ DefaultDirName={localappdata}\Programs\Blockhaven
 DefaultGroupName=Blockhaven
 DisableProgramGroupPage=yes
 DisableDirPage=yes
-; Installs from before the rename used another folder; the same AppId
-; makes this an upgrade of them, and this keeps it from reusing that folder.
+; Installs from before the rename used another folder and Start-menu
+; group; the same AppId makes this an upgrade of them, and these keep it
+; from reusing either.
 UsePreviousAppDir=no
+UsePreviousGroup=no
 PrivilegesRequired=lowest
 OutputDir=..\dist
 OutputBaseFilename={#OutputName}
