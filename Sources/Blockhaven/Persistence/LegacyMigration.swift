@@ -38,35 +38,48 @@ enum LegacyMigration {
         StandardError.write(Data("[migrate] \(legacy.path) → \(WorldSave.directoryURL.path): \(folder) · settings copied: \(keys)\n".utf8))
     }
 
-    /// Copies everything in `old` that `new` does not already have. Each
-    /// item goes through a temporary name, so an interrupted copy never
-    /// looks like a finished world or `saves` folder. `new` may already
-    /// exist — on Windows the run log can create it first.
+    /// Copies everything in `old` that `new` does not already have, going
+    /// into folders both have — a `saves` folder something created empty
+    /// first must still receive the worlds. Nothing is ever overwritten.
+    /// Each item goes through a temporary name, so an interrupted copy
+    /// never looks like a finished world.
     static func copySaves(from old: URL, to new: URL) -> String {
-        let manager = FileManager.default
-        guard manager.fileExists(atPath: old.path) else { return "no earlier folder" }
+        guard FileManager.default.fileExists(atPath: old.path) else { return "no earlier folder" }
         do {
-            try manager.createDirectory(at: new, withIntermediateDirectories: true)
-            let items = try manager.contentsOfDirectory(at: old, includingPropertiesForKeys: nil)
-            var copied = 0
-            for item in items {
-                let destination = new.appendingPathComponent(item.lastPathComponent)
-                guard !manager.fileExists(atPath: destination.path) else { continue }
-                let staging = new.appendingPathComponent(item.lastPathComponent + ".copying")
-                try? manager.removeItem(at: staging)
-                do {
-                    try manager.copyItem(at: item, to: staging)
-                    try manager.moveItem(at: staging, to: destination)
-                    copied += 1
-                } catch {
-                    try? manager.removeItem(at: staging)
-                    return "copy of \(item.lastPathComponent) failed: \(error)"
-                }
-            }
+            let copied = try merge(old, into: new)
             return "\(copied) item(s) copied from \(old.lastPathComponent)"
         } catch {
             return "copy failed: \(error)"
         }
+    }
+
+    private static func merge(_ source: URL, into destination: URL) throws -> Int {
+        let manager = FileManager.default
+        try manager.createDirectory(at: destination, withIntermediateDirectories: true)
+        var copied = 0
+        for item in try manager.contentsOfDirectory(at: source, includingPropertiesForKeys: nil) {
+            let target = destination.appendingPathComponent(item.lastPathComponent)
+            var targetIsFolder: ObjCBool = false
+            if manager.fileExists(atPath: target.path, isDirectory: &targetIsFolder) {
+                var itemIsFolder: ObjCBool = false
+                if targetIsFolder.boolValue, manager.fileExists(atPath: item.path, isDirectory: &itemIsFolder),
+                   itemIsFolder.boolValue {
+                    copied += try merge(item, into: target)
+                }
+                continue
+            }
+            let staging = destination.appendingPathComponent(item.lastPathComponent + ".copying")
+            try? manager.removeItem(at: staging)
+            do {
+                try manager.copyItem(at: item, to: staging)
+                try manager.moveItem(at: staging, to: target)
+                copied += 1
+            } catch {
+                try? manager.removeItem(at: staging)
+                throw error
+            }
+        }
+        return copied
     }
 
     /// Fills in each setting the new store lacks from the first old store

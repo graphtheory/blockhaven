@@ -64,6 +64,17 @@ enum MigrationCheck {
             second
         )
 
+        // MARK: an empty `saves` folder is already there
+
+        try? manager.removeItem(at: new)
+        try? manager.createDirectory(at: new.appendingPathComponent("saves"), withIntermediateDirectories: true)
+        let third = LegacyMigration.copySaves(from: old, to: new)
+        report.check(
+            "worlds still come across into a saves folder something created empty",
+            (try? Data(contentsOf: new.appendingPathComponent("saves/castle.json"))) == world,
+            third
+        )
+
         // MARK: nothing is overwritten
 
         let newer = Data(#"{"name":"played since"}"#.utf8)
