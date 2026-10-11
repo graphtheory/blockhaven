@@ -34,10 +34,15 @@ enum LegacyMigration {
         let folder = copySaves(from: legacy, to: WorldSave.directoryURL)
         let sources = [defaults] + legacyDomains.compactMap { UserDefaults(suiteName: $0) }
         let keys = copySettings(from: sources, into: defaults)
-        defaults.set(true, forKey: doneKey)
-        // Written now, not whenever Foundation gets round to it: a game
-        // that is closed or crashes early must not migrate again next time.
-        defaults.synchronize()
+        // Done only once there was something to bring across: with no
+        // earlier folder yet, the next launch looks again (one existence
+        // check), in case the old game is installed or restored later.
+        if FileManager.default.fileExists(atPath: legacy.path) {
+            defaults.set(true, forKey: doneKey)
+            // Written now, not whenever Foundation gets round to it: a game
+            // that is closed or crashes early must not migrate again.
+            defaults.synchronize()
+        }
         StandardError.write(Data("[migrate] \(legacy.path) → \(WorldSave.directoryURL.path): \(folder) · settings copied: \(keys)\n".utf8))
     }
 
