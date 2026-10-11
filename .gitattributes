@@ -1,0 +1,3 @@
+# The asset name lists are read line by line; keep them LF on every checkout
+# (Windows git would otherwise hand the game "grass\r").
+Assets/*.txt text eol=lf

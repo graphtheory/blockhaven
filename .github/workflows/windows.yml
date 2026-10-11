@@ -1,0 +1,249 @@
+name: Windows
+
+# Builds the SDL front end for Windows, runs the headless checks on it, and
+# packages a zip that runs on a PC with nothing installed: the game, SDL3,
+# the Swift runtime and the Visual C++ runtime it sits on.
+on:
+  push:
+    branches: [main, windows-port]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    env:
+      SDL_VERSION: 3.2.24
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The whole history: the version counts its commits.
+          fetch-depth: 0
+
+      - name: Version
+        shell: pwsh
+        run: |
+          # VERSION plus the commit count, as the Mac build numbers itself
+          # (see GameVersion.swift).
+          $version = "$((Get-Content VERSION).Trim()).$(git rev-list --count HEAD)"
+          "GAME_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "Blockhaven $version"
+
+      - name: Install Swift
+        uses: compnerd/gha-setup-swift@main
+        with:
+          branch: swift-6.1.2-release
+          tag: 6.1.2-RELEASE
+
+      - name: Fetch SDL3
+        shell: pwsh
+        run: |
+          $zip = "SDL3-devel-$env:SDL_VERSION-VC.zip"
+          Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL_VERSION/$zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath sdl
+          $root = (Resolve-Path "sdl/SDL3-$env:SDL_VERSION").Path
+          "SDL_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build
+        shell: pwsh
+        run: |
+          swift build -c release `
+            -Xcc "-I$env:SDL_ROOT/include" `
+            -Xswiftc "-L$env:SDL_ROOT/lib/x64"
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $out = "dist/Blockhaven"
+          New-Item -ItemType Directory -Force $out | Out-Null
+          Copy-Item .build/release/Blockhaven.exe $out
+          [IO.File]::WriteAllText("$PWD/$out/version.txt", $env:GAME_VERSION)
+          if ((Get-Content "$out/version.txt") -ne $env:GAME_VERSION) { throw "version.txt was not written" }
+          Copy-Item "$env:SDL_ROOT/lib/x64/SDL3.dll" $out
+          if (Test-Path .build/release/Blockhaven_Blockhaven.resources) {
+            Copy-Item -Recurse .build/release/Blockhaven_Blockhaven.resources $out
+          }
+          if (Test-Path Assets) { Copy-Item -Recurse Assets "$out/Assets" }
+          # The Swift runtime: every DLL the toolchain ships for programs it
+          # built, beside the exe so Windows finds them without a PATH.
+          $runtime = Get-ChildItem -Recurse -Filter swiftCore.dll "$env:LOCALAPPDATA/Programs/Swift/Runtimes" | Select-Object -First 1
+          Copy-Item "$($runtime.DirectoryName)/*.dll" $out
+          # The Visual C++ runtime the Swift runtime is built against.
+          foreach ($dll in "vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll") {
+            Copy-Item "C:/Windows/System32/$dll" $out
+          }
+          Get-ChildItem $out | Select-Object Name, Length
+
+      - name: Show what the exe links against
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -property installationPath
+          $dumpbin = Get-ChildItem -Recurse -Filter dumpbin.exe "$vs/VC/Tools/MSVC" | Where-Object { $_.FullName -match "Hostx64\\x64" } | Select-Object -First 1
+          & $dumpbin.FullName /dependents dist/Blockhaven/Blockhaven.exe
+          Get-ChildItem dist/Blockhaven | Select-Object Name
+
+      - name: Headless checks
+        shell: pwsh
+        run: |
+          $env:BLOCKHAVEN_NO_SAVE = "1"
+          $env:BLOCKHAVEN_SAVE_DIR = "$PWD/.build/check-saves"
+          $failed = @()
+          foreach ($name in (Get-Content Tools/windows-checks.txt)) {
+            if (-not $name) { continue }
+            Set-Item "env:BLOCKHAVEN_CHECK_$name" "1"
+            # The release exe is a GUI program (no console window for the
+            # player), and PowerShell neither waits for one nor records its
+            # exit code when it is run with `&`. Start-Process does both.
+            $proc = Start-Process dist/Blockhaven/Blockhaven.exe -Wait -PassThru -NoNewWindow `
+              -RedirectStandardOutput check-out.txt -RedirectStandardError check-err.txt
+            $code = $proc.ExitCode
+            $out = @(Get-Content check-out.txt) + @(Get-Content check-err.txt)
+            Remove-Item "env:BLOCKHAVEN_CHECK_$name"
+            $last = ($out | Select-Object -Last 1)
+            "{0,-20} {1}" -f $name, $last
+            if ($code -ne 0) {
+              $failed += $name
+              "  exit code {0} (0x{0:X8})" -f $code
+              $out | Select-Object -Last 8
+            }
+          }
+          if ($failed.Count -gt 0) { throw "checks failed: $($failed -join ', ')" }
+
+      - name: Open the game window
+        shell: pwsh
+        run: |
+          # The checks above never open a window. This starts the packaged
+          # game the way a player's shortcut does: from a folder with a
+          # space in its name, another working directory, no console. The
+          # runner has no GPU, so Mesa's software OpenGL stands in, from
+          # opengl32.dll beside the exe.
+          Invoke-WebRequest https://github.com/pal1000/mesa-dist-win/releases/download/26.2.4/mesa3d-26.2.4-release-msvc.7z -OutFile mesa.7z
+          7z x mesa.7z -omesa | Out-Null
+          $game = "smoke test/Blockhaven"
+          New-Item -ItemType Directory -Force "smoke test" | Out-Null
+          Copy-Item -Recurse dist/Blockhaven $game
+          Copy-Item mesa/x64/*.dll $game
+          $env:GALLIUM_DRIVER = "llvmpipe"
+          $env:BLOCKHAVEN_SDL_SCREENSHOT_AFTER = "6"
+          $log = "$env:LOCALAPPDATA/Blockhaven/last-run.log"
+          New-Item -ItemType Directory -Force shots | Out-Null
+          $failed = @()
+          foreach ($run in "menu", "demo") {
+            $env:BLOCKHAVEN_SDL_SCREENSHOT = "$PWD/shots/$run.bmp"
+            if ($run -eq "demo") { $env:BLOCKHAVEN_DEMO = "1"; $env:BLOCKHAVEN_NO_SAVE = "1" }
+            $proc = Start-Process "$PWD/$game/Blockhaven.exe" -WorkingDirectory C:/ -Wait -PassThru
+            "== ${run}: exit code {0} (0x{0:X8})" -f $proc.ExitCode
+            if (Test-Path $log) { Get-Content $log; Copy-Item $log "shots/$run.log" } else { "(no log)" }
+            if ($proc.ExitCode -ne 0 -or -not (Test-Path "shots/$run.bmp")) { $failed += $run }
+          }
+          if (-not (Select-String -Quiet -SimpleMatch "[version] $env:GAME_VERSION" shots/menu.log)) {
+            $failed += "version line"
+          }
+          if ($failed.Count -gt 0) { throw "the game window failed: $($failed -join ', ')" }
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Window-Smoke-Test
+          path: shots
+
+      - name: Installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+          }
+          & $iscc /Q "/DAppVersion=$env:GAME_VERSION" Tools/windows-installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with $LASTEXITCODE" }
+          Get-Item dist/Blockhaven-Setup.exe | Select-Object Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Blockhaven-Setup
+          path: dist/Blockhaven-Setup.exe
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Blockhaven-Windows
+          path: dist/Blockhaven
+
+      - name: Upgrade an old install, then update itself
+        shell: pwsh
+        run: |
+          # The two journeys a player's PC takes: the game from before the
+          # rename upgraded in place (worlds copied, old folder and
+          # shortcuts gone), and an installed build finding a newer one and
+          # installing it by itself. The installers, and the games they
+          # start, inherit this step's environment.
+          $programs = "$env:LOCALAPPDATA/Programs"
+          $log = "$env:LOCALAPPDATA/Blockhaven/last-run.log"
+          $env:BLOCKHAVEN_NO_UPDATE = "1"
+          function Install($setup) {
+            $p = Start-Process $setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "$setup exited with $($p.ExitCode)" }
+          }
+          function Wait-For($what, [scriptblock]$test) {
+            for ($i = 0; $i -lt 120; $i++) { if (& $test) { "ok: $what"; return }; Start-Sleep 1 }
+            if (Test-Path $log) { Get-Content $log }
+            throw "timed out: $what"
+          }
+
+          # An older-numbered Blockhaven installer, from a copy of the package.
+          $old = "1.0.1"
+          Copy-Item -Recurse dist/Blockhaven dist/old
+          [IO.File]::WriteAllText("$PWD/dist/old/version.txt", $old)
+          & "${env:ProgramFiles(x86)}/Inno Setup 6/ISCC.exe" /Q "/DAppVersion=$old" "/DSourceDir=..\dist\old" "/DOutputName=Old-Setup" Tools/windows-installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC (old) failed with $LASTEXITCODE" }
+
+          # The game as it was before the rename, with a world saved — while
+          # its installer is still downloadable.
+          $legacy = $true
+          try { Invoke-WebRequest https://www.john-z.com/games/minecraft/Minecraft-Setup.exe -OutFile legacy-setup.exe }
+          catch { $legacy = $false; "::warning::the pre-rename installer is gone; skipping the upgrade-from-it part" }
+          if ($legacy) {
+            Install legacy-setup.exe
+            if (-not (Test-Path "$programs/Minecraft Clone/Minecraft.exe")) { throw "the old game did not install" }
+            foreach ($root in $env:APPDATA, $env:LOCALAPPDATA) {
+              New-Item -ItemType Directory -Force "$root/Minecraft Clone/saves" | Out-Null
+              Set-Content "$root/Minecraft Clone/saves/castle.json" '{"name":"castle"}'
+            }
+          }
+
+          Install dist/Old-Setup.exe
+          Wait-For "the game started after installing" { (Test-Path $log) -and (Select-String -Quiet -SimpleMatch "[migrate]" $log) }
+          Start-Sleep 2
+          Get-Content $log
+          Stop-Process -Name Blockhaven -ErrorAction SilentlyContinue
+          if (-not (Test-Path "$programs/Blockhaven/Blockhaven.exe")) { throw "Blockhaven did not install" }
+          if ($legacy) {
+            if (Test-Path "$programs/Minecraft Clone") { throw "the old program folder is still there" }
+            if (Test-Path "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/Minecraft Clone") { throw "the old Start menu entry is still there" }
+            $line = (Select-String -SimpleMatch "[migrate]" $log | Select-Object -First 1).Line
+            $newDir = ((($line -split " → ", 2)[1]) -split ": ", 2)[0] -replace '^/([A-Za-z]:)', '$1'
+            if (-not (Test-Path "$newDir/saves/castle.json")) { throw "the world did not come across to $newDir" }
+            "ok: the old world is in $newDir"
+          }
+          $entries = @(Get-ChildItem HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall | Get-ItemProperty |
+            Where-Object { $_.DisplayName -match "Blockhaven|Minecraft" })
+          $entries | Select-Object DisplayName, DisplayVersion
+          if ($entries.Count -ne 1) { throw "expected exactly one installed entry, found $($entries.Count)" }
+
+          # The installed 1.0.1 finds this commit's build on a local server
+          # and updates itself.
+          New-Item -ItemType Directory -Force serve | Out-Null
+          Copy-Item dist/Blockhaven-Setup.exe serve/
+          $size = (Get-Item serve/Blockhaven-Setup.exe).Length
+          @{ version = $env:GAME_VERSION; windows = @{ url = "http://127.0.0.1:8765/Blockhaven-Setup.exe"; size = $size } } |
+            ConvertTo-Json | Set-Content serve/version.json
+          $server = Start-Process python -ArgumentList "-m", "http.server", "8765", "--bind", "127.0.0.1", "--directory", "serve" -PassThru -WindowStyle Hidden
+          Start-Sleep 3
+          Remove-Item env:BLOCKHAVEN_NO_UPDATE
+          $env:BLOCKHAVEN_UPDATE_MANIFEST = "http://127.0.0.1:8765/version.json"
+          Remove-Item $log -ErrorAction SilentlyContinue
+          Start-Process "$programs/Blockhaven/Blockhaven.exe"
+          Wait-For "the installed game updated itself to $env:GAME_VERSION" { (Get-Content "$programs/Blockhaven/version.txt" -ErrorAction SilentlyContinue) -eq $env:GAME_VERSION }
+          Wait-For "the new version started by itself" { (Test-Path $log) -and (Select-String -Quiet -SimpleMatch "[version] $env:GAME_VERSION" $log) }
+          Get-Content $log
+          Stop-Process -Name Blockhaven -ErrorAction SilentlyContinue
+          Stop-Process -Id $server.Id -ErrorAction SilentlyContinue

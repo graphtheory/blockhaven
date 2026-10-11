@@ -1,0 +1,38 @@
+# Build artifacts
+*.d
+*.o
+*.swiftdeps
+*.swiftdeps~
+.build/
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcUserData/
+*.pbxproj
+*.pbxuser
+*.perspectivev3
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Swift
+.swiftpm/
+Package.resolved
+__pycache__/
+*.pyc
+*.dia
+.build/
+
+# Claude Code local overrides
+.claude/settings.local.json
+
+# Claude Code worktrees and multi-agent scratch
+.claude/worktrees/
+.agents/
+
+# Packaged builds (Tools/mac/make-app.sh, the Windows CI)
+/dist/
+.vscode/
