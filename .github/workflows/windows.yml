@@ -170,6 +170,7 @@ jobs:
 
       - name: Upgrade an old install, then update itself
         shell: pwsh
+        timeout-minutes: 15
         run: |
           # The two journeys a player's PC takes: the game from before the
           # rename upgraded in place (worlds copied, old folder and
@@ -179,9 +180,18 @@ jobs:
           $programs = "$env:LOCALAPPDATA/Programs"
           $log = "$env:LOCALAPPDATA/Blockhaven/last-run.log"
           $env:BLOCKHAVEN_NO_UPDATE = "1"
+          # Waits for the installer alone. `Start-Process -Wait` would also
+          # wait for the game it starts when it finishes, which never exits.
           function Install($setup) {
-            $p = Start-Process $setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
-            if ($p.ExitCode -ne 0) { throw "$setup exited with $($p.ExitCode)" }
+            $name = [IO.Path]::GetFileNameWithoutExtension($setup)
+            "installing $setup"
+            $p = Start-Process $setup -PassThru -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=$PWD\$name-install.log"
+            if (-not $p.WaitForExit(180000)) {
+              Get-Process | Where-Object { $_.ProcessName -match "setup|\.tmp|Blockhaven|Minecraft" } | Format-Table Id, ProcessName
+              Get-Content "$name-install.log" -Tail 40 -ErrorAction SilentlyContinue
+              throw "$setup did not finish within three minutes"
+            }
+            if ($p.ExitCode -ne 0) { Get-Content "$name-install.log" -Tail 40; throw "$setup exited with $($p.ExitCode)" }
           }
           function Wait-For($what, [scriptblock]$test) {
             for ($i = 0; $i -lt 120; $i++) { if (& $test) { "ok: $what"; return }; Start-Sleep 1 }
@@ -190,6 +200,7 @@ jobs:
           }
 
           # An older-numbered Blockhaven installer, from a copy of the package.
+          "building an installer numbered 1.0.1"
           $old = "1.0.1"
           Copy-Item -Recurse dist/Blockhaven dist/old
           [IO.File]::WriteAllText("$PWD/dist/old/version.txt", $old)
