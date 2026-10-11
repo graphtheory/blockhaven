@@ -35,6 +35,9 @@ enum LegacyMigration {
         let sources = [defaults] + legacyDomains.compactMap { UserDefaults(suiteName: $0) }
         let keys = copySettings(from: sources, into: defaults)
         defaults.set(true, forKey: doneKey)
+        // Written now, not whenever Foundation gets round to it: a game
+        // that is closed or crashes early must not migrate again next time.
+        defaults.synchronize()
         StandardError.write(Data("[migrate] \(legacy.path) → \(WorldSave.directoryURL.path): \(folder) · settings copied: \(keys)\n".utf8))
     }
 

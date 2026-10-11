@@ -120,6 +120,8 @@ final class Updater: @unchecked Sendable {
                 set(.done); return
             }
             GameSettings.lastUpdateAttempt = manifest.version
+            // The game quits moments from now; the guard has to be on disk.
+            UserDefaults.standard.synchronize()
             log("updating \(current) → \(manifest.version)")
             fetch(url, size: download.size, version: manifest.version)
         }.resume()
