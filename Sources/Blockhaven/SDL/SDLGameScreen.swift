@@ -235,6 +235,13 @@ final class SDLGameScreen: SDLScreen {
                 if session.tableWalkedAway() { closeInventory(app) }
             } else {
                 FrameProfiler.measure(.mobs) { session.updatePlay(dt: dt, input: frameInput) }
+                // A rocket reached the dark of its fade: the other place
+                // takes over. Leaving this screen writes nothing — the
+                // session has already handed itself to the next one.
+                if let next = session.takeTravelRequest() {
+                    app.setScreen(SDLGameScreen(session: next, app: app))
+                    return
+                }
                 if let request = session.takeScreenRequest() { openInventory(request, app: app) }
             }
             session.tickAutosave(dt: dt, canWrite: inventory == nil)
@@ -287,15 +294,16 @@ final class SDLGameScreen: SDLScreen {
         glClearColor(horizon.x, horizon.y, horizon.z, 1)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
-        sky.draw(view: view, projection: projection, grade: grade, timeOfDay: session.sky.timeOfDay, eye: eye, time: Float(clock))
+        sky.draw(view: view, projection: projection, grade: grade, timeOfDay: session.sky.timeOfDay, eye: eye, time: Float(clock),
+                 beacon: session.sky.beacon, lunar: session.sky.isLunar)
         blocks.draw(world: session.world, view: view, projection: projection, eye: eye, lighting: lighting)
         entities.draw(session: session, view: view, projection: projection, lighting: lighting, dt: dt,
                       highlight: (inventory == nil && pause == nil) ? session.highlightTarget : nil,
                       miningProgress: session.mining.progress)
         // Last, and writing no depth: translucent, and nothing may hide
         // behind it as far as the god rays' sky test is concerned.
-        clouds.draw(view: view, projection: projection, eye: eye, horizonSRGB: grade.horizon,
-                    sunDirection: sunDirection, dt: dt)
+        if !session.sky.isLunar { clouds.draw(view: view, projection: projection, eye: eye, horizonSRGB: grade.horizon,
+                    sunDirection: sunDirection, dt: dt) }
         // The sun in camera space: the view matrix's rotation is the
         // camera basis' transpose, so this is that rotation applied.
         let sunInView = view * SIMD4<Float>(sunDirection, 0)
@@ -361,6 +369,7 @@ final class SDLGameScreen: SDLScreen {
     private func openPause(_ app: SDLApp) {
         session.save()
         let screen = SDLPauseScreen()
+        screen.journal = session.journalLines()
         if session.lastSaveFailure != nil { screen.warning = GameSession.saveFailureMessage }
         screen.onResume = { [weak self] in self?.closePause(app) }
         screen.onMainMenu = { [weak self] in self?.returnToMenu(app) }

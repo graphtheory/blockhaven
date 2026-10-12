@@ -55,6 +55,12 @@ struct PlayerController {
     /// hurts on contact, the same as the original's own.
     var isInLava = false
 
+    /// How strongly this place pulls, as a fraction of the home world's.
+    var gravityScale: CGFloat = 1
+    /// The Moon's: a jump carries you over a wall, and a fall that would
+    /// break a leg at home is a long, slow drift.
+    static let lunarGravityScale: CGFloat = 0.4
+
     /// Distance fallen since leaving the ground, for fall damage.
     private var fallStartY: CGFloat = 0
     private var wasGrounded = true
@@ -144,7 +150,7 @@ struct PlayerController {
                 velocity.y = max(PlayerController.waterTerminalVelocity, velocity.y)
             }
         } else {
-            velocity.y -= PlayerController.gravity * dt
+            velocity.y -= PlayerController.gravity * gravityScale * dt
             velocity.y = max(PlayerController.terminalVelocity, velocity.y)
         }
 
@@ -165,7 +171,10 @@ struct PlayerController {
 
         var damage = 0
         if landed, !wasGrounded {
-            let fallDistance = fallStartY - position.y
+            // Scaled by the pull, so what hurts is how fast you land rather
+            // than how far you fell: the same landing speed costs the same
+            // anywhere.
+            let fallDistance = (fallStartY - position.y) * gravityScale
             // The original's rule: three blocks free, then a half-heart per
             // block beyond.
             if fallDistance > 3, !isInWater {

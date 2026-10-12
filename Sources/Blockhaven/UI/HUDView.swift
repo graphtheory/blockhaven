@@ -56,6 +56,8 @@ final class HUDView: NSView {
         drawToast(context, above: hotbarRect)
         drawCraftingHint(context, above: hotbarRect)
         drawCompassDial(context)
+        drawKeeper(context)
+        drawObjective(context)
         drawDebug(context)
 
         if state.fadeToBlack > 0 {
@@ -216,7 +218,7 @@ final class HUDView: NSView {
         }
 
         // Bubbles only appear while air is actually being spent.
-        guard state.air < PlayerStats.maxAir else { return }
+        guard state.air < PlayerStats.maxAir || state.isLunar else { return }
         for index in 0..<10 where state.air > index * 2 {
             let centre = CGPoint(
                 x: hotbar.maxX - 8 - CGFloat(9 - index) * spacing,
@@ -407,6 +409,37 @@ final class HUDView: NSView {
                 withAttributes: attributes
             )
         }
+    }
+
+    /// KEEPER's voice: amber, near the top, under where the compass sits.
+    private func drawKeeper(_ context: CGContext) {
+        guard let line = state.keeperLine else { return }
+        let text = line as NSString
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedSystemFont(ofSize: 15, weight: .bold),
+            .foregroundColor: NSColor(calibratedRed: 1.0, green: 0.80, blue: 0.38, alpha: 1),
+        ]
+        let size = text.size(withAttributes: attributes)
+        let origin = CGPoint(x: (bounds.width - size.width) / 2, y: bounds.height - 120)
+        context.setFillColor(NSColor(calibratedWhite: 0.02, alpha: 0.66).cgColor)
+        context.fill(CGRect(x: origin.x - 12, y: origin.y - 6, width: size.width + 24, height: size.height + 12))
+        text.draw(at: origin, withAttributes: attributes)
+    }
+
+    /// The journal's tracked objective, small, in the top-left corner —
+    /// below the debug readout when that is open.
+    private func drawObjective(_ context: CGContext) {
+        guard let objective = state.objective, state.debugText == nil else { return }
+        let text = ("▸ " + objective) as NSString
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+            .foregroundColor: NSColor.white,
+        ]
+        let size = text.size(withAttributes: attributes)
+        let origin = CGPoint(x: 14, y: bounds.height - size.height - 14)
+        context.setFillColor(NSColor(calibratedWhite: 0.04, alpha: 0.5).cgColor)
+        context.fill(CGRect(x: origin.x - 7, y: origin.y - 5, width: size.width + 14, height: size.height + 10))
+        text.draw(at: origin, withAttributes: attributes)
     }
 
     private func drawDebug(_ context: CGContext) {

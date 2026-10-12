@@ -1273,6 +1273,254 @@ extension TextureAtlas {
             context.setFillColor(rgb(0.38, 0.27, 0.15).cgColor)
             context.fill(CGRect(x: 0, y: 0, width: 3, height: 3))
             context.fill(CGRect(x: 13, y: 0, width: 3, height: 3))
+
+        default:
+            drawGardenTile(tile, in: context)
+        }
+    }
+
+    /// The Sleeping Garden's tiles, kept apart from the long switch above
+    /// so the storyline's pictures read as one family.
+    private static func drawGardenTile(_ tile: AtlasTile, in context: CGContext) {
+        switch tile {
+        case .radioFront, .radioFrontLit:
+            // A grey cabinet with a speaker grille and one lamp — dead red
+            // until it is mended, warm amber once it speaks.
+            let lit = tile == .radioFrontLit
+            speckle(context, base: rgb(0.40, 0.42, 0.44),
+                    shades: [rgb(0.34, 0.36, 0.38), rgb(0.47, 0.49, 0.51)], density: 0.45, salt: 301)
+            context.setFillColor(rgb(0.16, 0.17, 0.18).cgColor)
+            context.fill(CGRect(x: 2, y: 2, width: 12, height: 8))
+            for y in stride(from: 3, to: 9, by: 2) {
+                for x in stride(from: 3, to: 13, by: 2) {
+                    pixel(context, x, y, rgb(0.30, 0.31, 0.33))
+                }
+            }
+            context.setFillColor((lit ? rgb(1.0, 0.78, 0.30) : rgb(0.45, 0.10, 0.08)).cgColor)
+            context.fill(CGRect(x: 11, y: 11, width: 3, height: 3))
+            if lit { pixel(context, 12, 12, rgb(1.0, 0.96, 0.75)) }
+            // The dial and its needle.
+            context.setFillColor(rgb(0.80, 0.78, 0.66).cgColor)
+            context.fill(CGRect(x: 2, y: 11, width: 7, height: 3))
+            pixel(context, lit ? 7 : 3, 12, rgb(0.70, 0.16, 0.12))
+
+        case .plaque:
+            // Smooth pale stone with lines of carving on it.
+            speckle(context, base: rgb(0.70, 0.69, 0.64),
+                    shades: [rgb(0.64, 0.63, 0.58), rgb(0.76, 0.75, 0.70)], density: 0.4, salt: 311)
+            context.setStrokeColor(rgb(0.50, 0.49, 0.45).cgColor)
+            context.setLineWidth(1)
+            context.stroke(CGRect(x: 1.5, y: 1.5, width: 13, height: 13))
+            for (y, length) in [(11, 9), (8, 10), (5, 7)] {
+                for x in 3..<(3 + length) where noise(x, y, 312) < 0.8 {
+                    pixel(context, x, y, rgb(0.38, 0.37, 0.34))
+                }
+            }
+
+        case .meteorOre:
+            // Dark scorched rock with glinting blue-violet metal in it.
+            drawOre(context, blobs: [rgb(0.62, 0.66, 0.95), rgb(0.44, 0.40, 0.78)], salt: 321,
+                    glow: rgb(0.30, 0.28, 0.48))
+
+        case .padTop:
+            // Steel plate with a yellow-and-black ring: a place to land.
+            speckle(context, base: rgb(0.52, 0.53, 0.56),
+                    shades: [rgb(0.46, 0.47, 0.50), rgb(0.58, 0.59, 0.62)], density: 0.4, salt: 331)
+            let centre = 7.5
+            for y in 0..<tilePixels {
+                for x in 0..<tilePixels {
+                    let dx = Double(x) - centre, dy = Double(y) - centre
+                    let radius = (dx * dx + dy * dy).squareRoot()
+                    if radius > 4.5 && radius < 6.5 {
+                        let stripe = ((x + y) / 2) % 2 == 0
+                        pixel(context, x, y, stripe ? rgb(0.95, 0.78, 0.16) : rgb(0.12, 0.12, 0.13))
+                    }
+                }
+            }
+            context.setFillColor(rgb(0.86, 0.22, 0.18).cgColor)
+            context.fill(CGRect(x: 6, y: 6, width: 4, height: 4))
+
+        case .rocketHull, .rocketWindow:
+            // White panels with rivet lines; the cabin's has a round
+            // window looking out.
+            fill(context, rgb(0.90, 0.91, 0.93))
+            for i in 0..<tilePixels {
+                pixel(context, i, 0, rgb(0.70, 0.72, 0.76))
+                pixel(context, 0, i, rgb(0.70, 0.72, 0.76))
+            }
+            for i in stride(from: 2, to: tilePixels, by: 4) {
+                pixel(context, i, 1, rgb(0.62, 0.64, 0.68))
+                pixel(context, 1, i, rgb(0.62, 0.64, 0.68))
+            }
+            if tile == .rocketWindow {
+                let centre = 8.0
+                for y in 0..<tilePixels {
+                    for x in 0..<tilePixels {
+                        let dx = Double(x) + 0.5 - centre, dy = Double(y) + 0.5 - centre
+                        let radius = (dx * dx + dy * dy).squareRoot()
+                        if radius < 3.6 {
+                            pixel(context, x, y, rgb(0.22 + dy * 0.02, 0.48, 0.78))
+                        } else if radius < 5 {
+                            pixel(context, x, y, rgb(0.86, 0.22, 0.18))
+                        }
+                    }
+                }
+                pixel(context, 6, 9, rgb(0.85, 0.95, 1.0))
+            } else {
+                // A red band, so the tank reads as part of the same craft.
+                context.setFillColor(rgb(0.86, 0.22, 0.18).cgColor)
+                context.fill(CGRect(x: 0, y: 6, width: 16, height: 3))
+            }
+
+        case .rocketEngine:
+            // Dark metal flaring to a nozzle, with a glow inside it.
+            fill(context, rgb(0.30, 0.31, 0.34))
+            context.setFillColor(rgb(0.44, 0.45, 0.48).cgColor)
+            context.fill(CGRect(x: 3, y: 4, width: 10, height: 12))
+            context.setFillColor(rgb(0.14, 0.14, 0.16).cgColor)
+            context.fill(CGRect(x: 4, y: 0, width: 8, height: 5))
+            context.setFillColor(rgb(0.98, 0.58, 0.16).cgColor)
+            context.fill(CGRect(x: 6, y: 0, width: 4, height: 3))
+            pixel(context, 7, 1, rgb(1.0, 0.92, 0.55))
+            pixel(context, 8, 1, rgb(1.0, 0.92, 0.55))
+
+        case .airMakerSide, .airMakerTop:
+            // A green-glassed tank of leaves behind iron, and a fan on top.
+            speckle(context, base: rgb(0.66, 0.68, 0.70),
+                    shades: [rgb(0.58, 0.60, 0.62), rgb(0.74, 0.76, 0.78)], density: 0.4, salt: 341)
+            if tile == .airMakerSide {
+                context.setFillColor(rgb(0.20, 0.42, 0.24).cgColor)
+                context.fill(CGRect(x: 3, y: 3, width: 10, height: 10))
+                for y in 3..<13 {
+                    for x in 3..<13 where noise(x, y, 342) < 0.35 {
+                        pixel(context, x, y, rgb(0.36, 0.66, 0.30))
+                    }
+                }
+                for i in 3..<13 { pixel(context, i, 8, rgb(0.55, 0.57, 0.60)) }
+            } else {
+                context.setFillColor(rgb(0.22, 0.23, 0.25).cgColor)
+                context.fillEllipse(in: CGRect(x: 2, y: 2, width: 12, height: 12))
+                for i in 3..<13 {
+                    pixel(context, i, i, rgb(0.70, 0.72, 0.74))
+                    pixel(context, i, 15 - i, rgb(0.70, 0.72, 0.74))
+                }
+            }
+
+        case .moonDust:
+            speckle(context, base: rgb(0.72, 0.72, 0.70),
+                    shades: [rgb(0.64, 0.64, 0.63), rgb(0.80, 0.80, 0.78), rgb(0.58, 0.58, 0.57)],
+                    density: 0.7, salt: 351)
+
+        case .moonRock:
+            speckle(context, base: rgb(0.46, 0.46, 0.47),
+                    shades: [rgb(0.38, 0.38, 0.40), rgb(0.54, 0.54, 0.55), rgb(0.32, 0.32, 0.34)],
+                    density: 0.65, salt: 361)
+            // A few small pits.
+            for (x, y) in [(3, 4), (10, 11), (12, 3), (6, 12)] {
+                pixel(context, x, y, rgb(0.24, 0.24, 0.26))
+                pixel(context, x + 1, y, rgb(0.30, 0.30, 0.32))
+            }
+
+        case .moonBrick:
+            fill(context, rgb(0.36, 0.36, 0.38))
+            for row in 0..<4 {
+                let offset = row % 2 == 0 ? 0 : 4
+                for col in -1..<3 {
+                    let x = col * 8 + offset
+                    let n = noise(col, row, 371)
+                    context.setFillColor(rgb(0.70 + n * 0.06, 0.70 + n * 0.06, 0.68 + n * 0.05).cgColor)
+                    context.fill(CGRect(x: x, y: row * 4, width: 7, height: 3))
+                }
+            }
+
+        case .prismGlass:
+            // Glass with a rainbow running through it.
+            context.clear(CGRect(x: 0, y: 0, width: tilePixels, height: tilePixels))
+            for y in 0..<tilePixels {
+                for x in 0..<tilePixels {
+                    let t = Double((x + y) % 16) / 16
+                    let colour = rgb(0.6 + 0.4 * sin(t * 6.28), 0.6 + 0.4 * sin(t * 6.28 + 2.1),
+                                     0.6 + 0.4 * sin(t * 6.28 + 4.2), 0.32)
+                    pixel(context, x, y, colour)
+                }
+            }
+            context.setStrokeColor(rgb(0.85, 0.90, 1.0, 0.85).cgColor)
+            context.setLineWidth(1)
+            context.stroke(CGRect(x: 0.5, y: 0.5, width: 15, height: 15))
+            for i in 0..<5 { pixel(context, 3 + i, 12 - i, rgb(1, 1, 1, 0.75)) }
+
+        case .gardenSeal:
+            // A heavy round door of dark metal, a leaf picked out on it.
+            speckle(context, base: rgb(0.20, 0.24, 0.24),
+                    shades: [rgb(0.16, 0.19, 0.19), rgb(0.26, 0.30, 0.30)], density: 0.5, salt: 381)
+            context.setStrokeColor(rgb(0.48, 0.56, 0.52).cgColor)
+            context.setLineWidth(1)
+            context.strokeEllipse(in: CGRect(x: 1.5, y: 1.5, width: 13, height: 13))
+            for (x, y) in [(7, 4), (7, 5), (7, 6), (7, 7), (7, 8), (6, 8), (8, 8), (5, 9), (9, 9),
+                           (6, 10), (8, 10), (7, 11)] {
+                pixel(context, x, y, rgb(0.42, 0.78, 0.46))
+            }
+
+        case .silverThatch:
+            // Woven silver reed, the strands crossing.
+            fill(context, rgb(0.62, 0.66, 0.70))
+            for y in 0..<tilePixels {
+                for x in 0..<tilePixels {
+                    let weave = ((x / 2) + (y / 2)) % 2 == 0
+                    let n = noise(x, y, 391) * 0.08
+                    pixel(context, x, y, weave ? rgb(0.80 + n, 0.83 + n, 0.88 + n) : rgb(0.56 + n, 0.60 + n, 0.65 + n))
+                }
+            }
+
+        case .gardenSprout:
+            // Two round leaves on a short stem — the same start for both.
+            context.clear(CGRect(x: 0, y: 0, width: tilePixels, height: tilePixels))
+            let stem = rgb(0.30, 0.52, 0.26)
+            for y in 0..<4 { pixel(context, 7, y, stem) }
+            for (x, y) in [(5, 4), (6, 4), (6, 5), (8, 4), (9, 4), (8, 5), (4, 5), (10, 5)] {
+                pixel(context, x, y, rgb(0.42, 0.74, 0.40))
+            }
+
+        case .lampBloomStage1, .lampBloomStage2, .lampBloomStage3:
+            // A stalk with a bud that opens into a glowing flower.
+            context.clear(CGRect(x: 0, y: 0, width: tilePixels, height: tilePixels))
+            let stage = tile.rawValue - AtlasTile.lampBloomStage1.rawValue + 1
+            let height = 4 + stage * 2
+            let stem = rgb(0.24, 0.50, 0.30)
+            for y in 0..<height { pixel(context, 7, y, stem) }
+            for (x, y) in [(5, 2), (6, 3), (9, 3), (8, 4), (5, 6), (9, 7)] where y < height {
+                pixel(context, x, y, rgb(0.36, 0.66, 0.38))
+            }
+            let head = height
+            if stage == 1 {
+                pixel(context, 7, head, rgb(0.70, 0.66, 0.30))
+            } else {
+                let glow = stage == 3 ? rgb(1.0, 0.92, 0.50) : rgb(0.90, 0.78, 0.34)
+                let petal = stage == 3 ? rgb(1.0, 0.70, 0.30) : rgb(0.80, 0.60, 0.28)
+                for (dx, dy) in [(0, 0), (0, 1), (0, 2), (-1, 1), (1, 1)] {
+                    pixel(context, 7 + dx, head + dy, glow)
+                }
+                if stage == 3 {
+                    for (dx, dy) in [(-2, 1), (2, 1), (-1, 0), (1, 0), (-1, 2), (1, 2), (0, 3)] {
+                        pixel(context, 7 + dx, head + dy, petal)
+                    }
+                }
+            }
+
+        case .silverReedStage1, .silverReedStage2, .silverReedStage3:
+            // Thin blades that go from green to shining silver.
+            context.clear(CGRect(x: 0, y: 0, width: tilePixels, height: tilePixels))
+            let stage = tile.rawValue - AtlasTile.silverReedStage1.rawValue + 1
+            let tall = 5 + stage * 3
+            let colour = stage == 3 ? rgb(0.82, 0.86, 0.92) : (stage == 2 ? rgb(0.56, 0.70, 0.62) : rgb(0.40, 0.62, 0.40))
+            for (i, x) in [2, 4, 7, 9, 12, 14].enumerated() {
+                let h = max(2, tall - (i % 3) * 2)
+                for y in 0..<h { pixel(context, x, y, colour) }
+                if stage == 3 { pixel(context, x, h, rgb(0.96, 0.97, 1.0)) }
+            }
+
+        default:
+            fill(context, rgb(0.7, 0.4, 0.8))
         }
     }
 

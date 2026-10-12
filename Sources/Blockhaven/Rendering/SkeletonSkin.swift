@@ -27,6 +27,33 @@ enum SkeletonSkin {
         $0.fill(CGRect(x: 0, y: 0, width: pixels, height: pixels))
     }
 
+    /// The Moon's maintenance sentry: the same frame cast in dark metal,
+    /// with one red scanning eye where a skull would have two sockets.
+    static let sentryBody: NSImage = render { drawMetal($0) }
+
+    static let sentryFace: NSImage = render {
+        drawMetal($0)
+        $0.setFillColor(rgb(0.08, 0.08, 0.10).cgColor)
+        $0.fill(CGRect(x: 2, y: 8, width: 12, height: 4))
+        $0.setFillColor(rgb(1.0, 0.18, 0.12).cgColor)
+        $0.fill(CGRect(x: 6, y: 9, width: 4, height: 2))
+        $0.setFillColor(rgb(1.0, 0.72, 0.60).cgColor)
+        $0.fill(CGRect(x: 7, y: 10, width: 2, height: 1))
+    }
+
+    private static func drawMetal(_ context: CGContext) {
+        let shades = [rgb(0.30, 0.32, 0.36), rgb(0.38, 0.40, 0.44), rgb(0.24, 0.25, 0.28), rgb(0.46, 0.48, 0.52)]
+        for y in 0..<pixels {
+            for x in 0..<pixels {
+                let n = latticeHash(x / 4, y / 4, seed: 0x5E47)
+                let jitter = latticeHash(x, y, seed: 0x5E48)
+                let index = Int((n * 0.7 + jitter * 0.3) * Double(shades.count))
+                pixel(context, x, y, shades[min(shades.count - 1, index)])
+            }
+        }
+        for x in 0..<pixels { pixel(context, x, 5, rgb(0.86, 0.66, 0.18)) }
+    }
+
     private static func render(_ body: (CGContext) -> Void) -> NSImage {
         let image = NSImage(size: NSSize(width: pixels, height: pixels))
         image.lockFocus()

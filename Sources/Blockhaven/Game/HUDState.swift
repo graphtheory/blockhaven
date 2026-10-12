@@ -41,4 +41,11 @@ struct HUDState {
     /// because the point of it is that the player sees nothing for a
     /// moment while the sun moves.
     var fadeToBlack: CGFloat = 0
+    /// True on the Moon while outside any air: the air row shows even when
+    /// full, because it is the clock that matters out there.
+    var isLunar = false
+    /// KEEPER speaking, if he is.
+    var keeperLine: String?
+    /// The journal's tracked objective, with which way and how far.
+    var objective: String?
 }

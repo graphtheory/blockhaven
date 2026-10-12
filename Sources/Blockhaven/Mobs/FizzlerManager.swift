@@ -82,7 +82,7 @@ struct FizzlerManager {
     private var rng: SeededGenerator
 
     /// Fizzlers only exist in survival — creative is for building.
-    private let enabled: Bool
+    var enabled: Bool
 
     init(mode: GameMode, seed: UInt64) {
         self.enabled = mode.spawnsHostileMobs

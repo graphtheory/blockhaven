@@ -14,7 +14,7 @@ import Foundation
 /// and the two are different objects — which is the whole fix.
 enum CreativeCatalogue {
     enum Shelf: Int, CaseIterable {
-        case building, nature, light, moving, tools, materials
+        case building, nature, light, moving, tools, expedition, materials
 
         var title: String {
             switch self {
@@ -23,6 +23,7 @@ enum CreativeCatalogue {
             case .light: return L10n.t("Light", "Ljus")
             case .moving: return L10n.t("Rails & Carts", "Räls & vagnar")
             case .tools: return L10n.t("Tools", "Verktyg")
+            case .expedition: return L10n.t("Expedition", "Expedition")
             case .materials: return L10n.t("Materials", "Material")
             }
         }
@@ -41,6 +42,12 @@ enum CreativeCatalogue {
             return .light
         case .rail, .poweredRail, .detectorRail, .minecart:
             return .moving
+        // Everything the storyline adds, on one shelf: a creative world can
+        // build a rocket and fly to the Moon without a single radio.
+        case .radio, .signalCore, .rawMeteor, .meteorIngot, .launchPad, .rocket, .spaceSuit, .fuelCell,
+             .airMaker, .moonDust, .moonRock, .moonBrick, .prismGlass,
+             .lampBloomSeeds, .silverReedSeeds, .silverReed, .silverThatch:
+            return .expedition
         case .leaves, .birchLeaves, .spruceLeaves, .cactus,
              .tallGrass, .poppy, .dandelion, .cornflower, .deadBush,
              .sapling, .birchSapling, .spruceSapling,

@@ -26,6 +26,16 @@ struct Recipe {
         }
     }
 
+    /// What the three pieces of the old network unlock. Until all three
+    /// are recorded these recipes are not offered in survival — the
+    /// storyline's one gate, and the only recipe gate in the game.
+    var isExpeditionRecipe: Bool {
+        switch output.type {
+        case .launchPad, .rocket, .spaceSuit, .airMaker: return true
+        default: return false
+        }
+    }
+
     /// Recipes wider or taller than 2 need a crafting table — which is the
     /// same statement as "won't fit in the grid you carry around".
     var requiresTable: Bool { !fits(gridSize: 2) }
@@ -51,7 +61,7 @@ struct Recipe {
     /// makes rather than what it is made of: a child looking for stairs
     /// looks under the things you build a house out of, not under wood.
     enum Group: Int, CaseIterable {
-        case wood, stoneAndGlass, house, tools, other
+        case wood, stoneAndGlass, house, tools, expedition, other
 
         var title: String {
             switch self {
@@ -59,6 +69,7 @@ struct Recipe {
             case .stoneAndGlass: return L10n.t("Stone & Glass", "Sten & glas")
             case .house: return L10n.t("House", "Hus")
             case .tools: return L10n.t("Tools", "Verktyg")
+            case .expedition: return L10n.t("Expedition", "Expedition")
             case .other: return L10n.t("Other", "Övrigt")
             }
         }
@@ -82,6 +93,8 @@ struct Recipe {
             return .house
         case .hoe, .bucket, .compass, .masonLine, .blueprint, .ironChestplate, .diamondChestplate:
             return .tools
+        case .radio, .launchPad, .rocket, .spaceSuit, .airMaker, .silverThatch:
+            return .expedition
         default:
             return output.type.toolClass != nil ? .tools : .other
         }
@@ -465,7 +478,49 @@ enum RecipeBook {
             [.diamond, .masonLine, .diamond],
             [nil, .ironIngot, nil],
         ]), output: ItemStack(.blueprint)),
+
+        // The Sleeping Garden's hardware. A radio is the one piece anyone
+        // can build from the start: a world whose station was never found
+        // can still pick up the thread with one of its own. The rest are
+        // what the three pieces of the old network teach — see
+        // `isExpeditionRecipe`.
+        Recipe(pattern: .shaped([
+            [.ironIngot, .glowCrystal, .ironIngot],
+            [.ironIngot, .wire, .ironIngot],
+        ]), output: ItemStack(.radio)),
+        Recipe(pattern: .shaped([
+            [.ironIngot, .meteorIngot, .ironIngot],
+            [.meteorIngot, .signalCore, .meteorIngot],
+            [.ironIngot, .meteorIngot, .ironIngot],
+        ]), output: ItemStack(.launchPad)),
+        Recipe(pattern: .shaped([
+            [.meteorIngot, .glass, .meteorIngot],
+            [.meteorIngot, .furnace, .meteorIngot],
+            [.ironIngot, nil, .ironIngot],
+        ]), output: ItemStack(.rocket)),
+        Recipe(pattern: .shaped([
+            [.ironIngot, .glass, .ironIngot],
+            [.wool, .meteorIngot, .wool],
+            [.wool, nil, .wool],
+        ]), output: ItemStack(.spaceSuit)),
+        Recipe(pattern: .shaped([
+            [.ironIngot, .glass, .ironIngot],
+            [.sapling, .wire, .sapling],
+            [.ironIngot, .meteorIngot, .ironIngot],
+        ]), output: ItemStack(.airMaker)),
+        Recipe(pattern: .shapeless([.silverReed, .silverReed, .silverReed, .silverReed]),
+               output: ItemStack(.silverThatch, count: 4)),
     ]
+
+    /// Set by the world in play: false until its journal holds all three
+    /// pieces. True everywhere else — creative, the demo, and every check
+    /// that builds recipes without a world behind them.
+    static var expeditionUnlocked = true
+
+    /// Every recipe the player can make use of right now.
+    static var available: [Recipe] {
+        expeditionUnlocked ? all : all.filter { !$0.isExpeditionRecipe }
+    }
 
     /// The result of what's currently on the grid, or nil if it matches
     /// nothing. A 2×2 grid only ever sees recipes that fit in 2×2.
@@ -481,7 +536,7 @@ enum RecipeBook {
         let mirrored = shape.map { $0.reversed().map { $0 } }
         let contents = grid.contents().sorted { $0.rawValue < $1.rawValue }
 
-        for recipe in all {
+        for recipe in available {
             if recipe.requiresTable, grid.size < 3 { continue }
             switch recipe.pattern {
             case .shaped(let rows):
@@ -503,7 +558,7 @@ enum RecipeBook {
     /// Recipes the player could make right now from their inventory —
     /// backing for the recipe hint strip in the inventory screen.
     static func craftable(from inventory: Inventory, gridSize: Int) -> [Recipe] {
-        all.filter { canCraft($0, from: inventory, gridSize: gridSize) }
+        available.filter { canCraft($0, from: inventory, gridSize: gridSize) }
     }
 
     /// Every recipe on its shelf, in the order the recipe book lists them.
@@ -512,7 +567,9 @@ enum RecipeBook {
     /// none is left out — `RecipeBookCheck` asserts both.
     static var shelves: [(group: Recipe.Group, entries: [Int])] {
         Recipe.Group.allCases.compactMap { group in
-            let entries = all.indices.filter { all[$0].group == group }
+            let entries = all.indices.filter {
+                all[$0].group == group && (expeditionUnlocked || !all[$0].isExpeditionRecipe)
+            }
             return entries.isEmpty ? nil : (group, entries)
         }
     }

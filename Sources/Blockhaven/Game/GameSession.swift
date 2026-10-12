@@ -45,6 +45,8 @@ final class GameSession {
 
     /// Chosen on the start screen and fixed for the life of the world.
     let mode: GameMode
+    /// The demo world, which resets every time and tells no story.
+    let isDemo: Bool
 
     /// What this world is called. Shown in the window title, written into
     /// every save, and what the start menu puts on the Continue card.
@@ -56,6 +58,46 @@ final class GameSession {
     let fileURL: URL?
 
     let world: World
+    /// Which of the save's two places this session is. A session is one
+    /// place: travelling builds a new session for the other one.
+    let destination: Destination
+    /// The storyline's journal — the player's, carried between places.
+    var story = StoryState()
+    /// The other place, asleep, exactly as it was last left. Written back
+    /// into every save so one file always holds both.
+    var elsewhere: WorldSave?
+    /// Set on a session built for a rocket's arrival: who is stepping out.
+    var arriving: Arrival?
+    /// Set once this session has handed the player to another. Nothing it
+    /// writes after that point would be true, so it writes nothing.
+    var hasTravelled = false
+    /// A session for the other place, ready for the front end to swap in.
+    var travelRequest: GameSession?
+    func takeTravelRequest() -> GameSession? {
+        defer { travelRequest = nil }
+        return travelRequest
+    }
+    /// KEEPER's lines waiting to be shown, and the one on screen.
+    var keeperQueue: [String] = []
+    var keeperLine: String?
+    var keeperTimer: Double = 0
+    /// Story checks that do not need every frame run on this clock.
+    var storyTickAccumulator: Double = 0
+    /// Cells on the Moon a player can breathe in, rebuilt every second
+    /// from every powered air maker's sealed room.
+    var breathable: Set<StoryCell> = []
+    /// What each air maker reported on the last sweep, for the crosshair.
+    var airMakerStatus: [StoryCell: AirMakerStatus] = [:]
+    /// The launch countdown: a rocket clicked once to arm, again to go.
+    var launchArmedTimer: Double = 0
+    /// The fade a launch or a landing passes through.
+    var travelFade: Double = 0
+    var travelFadeOut = false
+    /// The garden's waking sequence, once the lever is pulled.
+    var wakingStep = -1
+    var wakingTimer: Double = 0
+    /// Last air warning given, so each is said once per trip outside.
+    var airWarningLevel = 0
     /// The save this world was reopened from, applied in `viewDidLoad`
     /// once the scene exists, then dropped: the journal already lives in
     /// `World` and a second copy of it would sit here for the whole run.
@@ -180,13 +222,31 @@ final class GameSession {
     /// a real one: two worlds that generate the same landscape are not two
     /// worlds, and a list of them is a list of copies.
     convenience init(newWorld mode: GameMode, name: String, seed: UInt64? = nil) {
+        // `BLOCKHAVEN_STORY_START=moon` opens a new world already standing on
+        // the Moon beside the rocket, suited, with the pieces found — the
+        // way to look at the Moon, its HUD and its garden without playing
+        // the first half of the story every time.
+        let onMoon = ProcessInfo.processInfo.environment["BLOCKHAVEN_STORY_START"] == "moon"
         self.init(
             mode: mode,
             name: name,
             fileURL: WorldSave.isEnabled ? WorldCatalog.availableURL(for: name) : nil,
-            seed: seed,
-            restoring: nil
+            seed: onMoon ? GameSession.moonSeed(for: seed ?? World().seed) : seed,
+            restoring: nil,
+            destination: onMoon ? .moon : .home
         )
+        if onMoon {
+            story.radioRepaired = true
+            story.pieces = StoryPiece.allCases
+            story.launched = true
+            story.returnCellLoaded = true
+            arriving = Arrival(
+                slots: [ItemStack(.airMaker), ItemStack(.signalTorch, count: 2), ItemStack(.dirt, count: 4),
+                        ItemStack(.wheatSeeds, count: 4), ItemStack(.torch, count: 8)],
+                selectedSlot: 0, health: PlayerStats.maxHealth, hunger: PlayerStats.maxHunger,
+                air: PlayerStats.suitAirCapacity, chestplate: .spaceSuit
+            )
+        }
     }
 
     /// The demo world: the three landmarks, the railway and the coaster.
@@ -228,15 +288,19 @@ final class GameSession {
         fileURL: URL?,
         seed: UInt64?,
         restoring save: WorldSave?,
-        demo: Bool = false
+        demo: Bool = false,
+        destination: Destination = .home
     ) {
         self.mode = mode
+        self.isDemo = demo
         self.worldName = name
         self.fileURL = fileURL
         self.restored = save
+        let place = save?.destination ?? destination
+        self.destination = place
         if let save {
             let journal = save.editJournal
-            world = World(seed: save.seed, edits: journal)
+            world = World(seed: save.seed, edits: journal, kind: place)
             // Levers are ordinary blocks and load with everything else —
             // this just rebuilds the index of where they are, by walking
             // the same journal that just built the world, rather than
@@ -244,7 +308,7 @@ final class GameSession {
             for (coord, entries) in journal {
                 for (index, block) in entries where block == .leverOff || block == .leverOn
                     || block == .pressurePlateOff || block == .pressurePlateOn
-                    || (block.isCrop && block != .wheatStage3) || block == .hopper
+                    || (block.isCrop && !block.isRipeCrop) || block == .hopper
                     || block.isSapling || block.isDetectorRail || block.isSignalTorch
                     || block == .daylightSensor || block == .signalLamp || block == .signalLampLit {
                     let plane = Chunk.width * Chunk.depth
@@ -284,9 +348,9 @@ final class GameSession {
                 }
             }
         } else if let seed {
-            world = World(seed: seed)
+            world = World(seed: seed, kind: place)
         } else {
-            world = World()
+            world = World(kind: place)
         }
         // Before anything generates. The site goes in through the edit
         // journal, which is exactly what a player's own building does, so
@@ -300,6 +364,20 @@ final class GameSession {
         skeletons = SkeletonManager(mode: mode, seed: world.seed &* 0x2545F4914F6CDD1D)
         animals = AnimalManager(mode: mode, seed: world.seed)
         dropRNG = SeededGenerator(seed: world.seed &* 0x2545F4914F6CDD1D &+ 0xD10D)
+        // Nothing lives on the Moon but what the player brings — and the
+        // garden's old maintenance machines, which are not fizzlers.
+        if place == .moon {
+            fizzlers.enabled = false
+            animals.enabled = false
+            skeletons.enabled = mode.spawnsHostileMobs
+            skeletons.sentryMode = true
+            player.gravityScale = PlayerController.lunarGravityScale
+            sky.isLunar = true
+        }
+        if let save {
+            story = save.story ?? StoryState()
+            elsewhere = save.elsewhere?.first
+        }
         if demo {
             // The chunk has to be generated before the cart can go on it.
             // The track is in the edit journal but not yet in any chunk,
@@ -324,7 +402,7 @@ final class GameSession {
         for (coord, entries) in journal {
             for (index, block) in entries where block == .leverOff || block == .leverOn
                 || block == .pressurePlateOff || block == .pressurePlateOn
-                || (block.isCrop && block != .wheatStage3) || block == .hopper
+                || (block.isCrop && !block.isRipeCrop) || block == .hopper
                 || block.isSapling || block.isDetectorRail || block.isSignalTorch
                 || block == .daylightSensor || block == .signalLamp || block == .signalLampLit {
                 let plane = Chunk.width * Chunk.depth
@@ -392,15 +470,24 @@ final class GameSession {
             sky.setWeatherDayIndex(restored.weatherDayIndex ?? 0)
             bedSpawn = restored.bedSpawn
             pendingGraveKeys = restored.pendingGraveKeys
+        } else if arriving != nil {
+            // Stepping out of a rocket onto ground nobody has stood on: what
+            // they carry is set below, not a starter kit.
         } else if mode == .creative {
             inventory.grantCreativeKit()
         } else {
             inventory.grantStarterKit()
         }
 
+        let arrived = arriving != nil
+        setUpStory()
+
         // Generate the spawn neighbourhood synchronously so the player
         // doesn't fall through an empty world on the first frames.
         primeSpawnChunks()
+        // A world just arrived in is the first place the file learns it
+        // holds two: write it now rather than at the first autosave.
+        if arrived { save() }
         // `BLOCKHAVEN_TIME=0.7` starts at night — the only practical way to
         // test fizzler spawning without waiting out a day cycle.
         if let start = Double(ProcessInfo.processInfo.environment["BLOCKHAVEN_TIME"] ?? "") {
@@ -588,7 +675,8 @@ final class GameSession {
                 dt: dt,
                 distanceMoved: player.isFlying ? 0 : travelled,
                 isSprinting: player.isSprinting,
-                isSubmerged: player.isSubmerged,
+                // On the Moon, open ground is as airless as deep water.
+                isSubmerged: player.isSubmerged || !isBreathing,
                 isInLava: player.isInLava
             )
             if stats.health < previousHealth { damageFlashTimer = 0.35 }
@@ -603,6 +691,7 @@ final class GameSession {
         )
 
         updateTargeting(dt: dt, input: input)
+        updateStory(dt: dt)
         FrameProfiler.measure(.mobs) {
             updateFizzlers(dt: dt)
             updateSkeletons(dt: dt)
@@ -722,11 +811,13 @@ final class GameSession {
     /// — the same split as `updateFurnaces`: the store keeps the clock,
     /// this is the only place that ever writes the world.
     func updateCrops(dt: Double) {
-        for key in crops.tick(dt: dt, world: world, isRaining: sky.isRaining) {
+        let gate: ((CropStore.Key) -> Bool)? = world.isLunar ? { [unowned self] in cropMayGrow($0) } : nil
+        for key in crops.tick(dt: dt, world: world, isRaining: sky.isRaining, canGrow: gate) {
             let current = world.block(worldX: key.x, y: key.y, worldZ: key.z)
-            guard current.isCrop, current != .wheatStage3,
+            guard current.isCrop, !current.isRipeCrop,
                   let next = BlockType(rawValue: current.rawValue + 1) else { continue }
             world.setBlock(worldX: key.x, y: key.y, worldZ: key.z, to: next)
+            if next.isRipeCrop { cropRipened(next) }
         }
     }
 
@@ -1264,6 +1355,7 @@ final class GameSession {
     }
 
     func breakBlock(_ hit: VoxelRayHit) {
+        if storyBreak(hit) { return }
         // Breaking anything while holding a blueprint that already carries
         // a captured shape discards that shape instead of the block aimed
         // at — the only way to let go of one copy and mark a different
@@ -1641,6 +1733,7 @@ final class GameSession {
                 return
             }
         }
+        if let hit, storyUse(hit) { return }
         if let hit, hit.block.isInteractive {
             let cell = (x: hit.blockX, y: hit.blockY, z: hit.blockZ)
             if hit.block.isDoor {
@@ -2324,7 +2417,7 @@ final class GameSession {
     /// numbers. Nothing generated is in it, so its size tracks what the
     /// player built rather than how far they walked.
     func captureSave() -> WorldSave {
-        WorldSave(
+        var save = WorldSave(
             seed: world.seed,
             mode: mode,
             name: worldName,
@@ -2348,6 +2441,10 @@ final class GameSession {
             minecarts: minecarts,
             animals: animals
         )
+        save.destination = destination
+        save.story = story
+        save.elsewhere = elsewhere.map { [$0] }
+        return save
     }
 
     /// What stopped the last write, if anything did — a full disk, a save
@@ -2376,7 +2473,7 @@ final class GameSession {
         // Reset before the guard, or a run with saving off leaves the timer
         // past due and re-enters this every frame for the rest of the run.
         autosaveTimer = 0
-        guard WorldSave.isEnabled, let fileURL else { return true }
+        guard WorldSave.isEnabled, let fileURL, !hasTravelled else { return true }
         // Quitting from the inventory screen reaches here with stacks still
         // held by the view; they are part of the player's inventory in every
         // sense but the one that matters to `captureSave`.
@@ -2492,7 +2589,15 @@ final class GameSession {
         state.selectedSlot = inventory.selectedHotbarSlot
         state.health = stats.health
         state.hunger = stats.hunger
-        state.air = stats.air
+        // Drawn as ten bubbles whatever the tank holds, so a suit's bigger
+        // tank reads as the same row draining more slowly.
+        state.air = stats.air * PlayerStats.maxAir / max(1, stats.airCapacity)
+        state.isLunar = world.isLunar && !isBreathing
+        state.keeperLine = keeperLine.map { "\(Keeper.name): \($0)" }
+        if let objective = objective() {
+            state.objective = objective.target.map { "\(objective.text) — \(objectiveDirection(to: $0))" }
+                ?? objective.text
+        }
         state.isSubmerged = player.isSubmerged
         state.isInLava = player.isInLava
         state.equippedChestplate = stats.equippedChestplate
@@ -2500,9 +2605,9 @@ final class GameSession {
         state.isCreative = mode == .creative
         state.showDamageFlash = damageFlashTimer > 0
         state.itemName = itemNameTimer > 0 ? itemNameToast : nil
-        state.toast = toastTimer > 0 ? toastText : nil
+        state.toast = toastTimer > 0 ? toastText : lookText()
         state.debugText = debugText
-        state.fadeToBlack = sleepFade
+        state.fadeToBlack = max(sleepFade, CGFloat(travelFade))
         if inventory.heldItem == .compass {
             let home = bedSpawn?.position ?? world.spawnPosition()
             let target = Grave.compassTarget(

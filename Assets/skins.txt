@@ -4,6 +4,8 @@ fizzler.flash
 skeleton.body
 skeleton.face
 skeleton.flash
+sentry.body
+sentry.face
 beak
 comb
 eye

@@ -87,6 +87,7 @@ enum AssetBake {
         var skins: [(String, NSImage)] = [
             ("fizzler.body", FizzlerSkin.body), ("fizzler.face", FizzlerSkin.face), ("fizzler.flash", FizzlerSkin.flash),
             ("skeleton.body", SkeletonSkin.body), ("skeleton.face", SkeletonSkin.face), ("skeleton.flash", SkeletonSkin.flash),
+            ("sentry.body", SkeletonSkin.sentryBody), ("sentry.face", SkeletonSkin.sentryFace),
             ("beak", AnimalSkin.beak), ("comb", AnimalSkin.comb), ("eye", AnimalSkin.eye),
         ]
         for kind in AnimalKind.allCases {

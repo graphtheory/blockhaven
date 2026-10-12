@@ -480,6 +480,35 @@ enum BlockType: UInt8, CaseIterable {
     // bathed in thermal radiance.
     case ice = 124
 
+    // MARK: The Sleeping Garden
+    //
+    // Everything the survival storyline (`specs/survival-storyline.md`)
+    // adds to the world grid, appended in one run. The radio is the voice
+    // of the old ground network: broken it shows a dead red lamp, lit it
+    // glows. A plaque is a stone tablet the crosshair reads aloud. The rest
+    // are the expedition's hardware, the Moon's own ground, and the two
+    // plants the garden gives back.
+    case radio = 125
+    case radioLit = 126
+    case plaque = 127
+    case meteorOre = 128
+    case padCore = 129
+    case rocketEngine = 130
+    case rocketTank = 131
+    case rocketCabin = 132
+    case airMaker = 133
+    case moonDust = 134
+    case moonRock = 135
+    case moonBrick = 136
+    case prismGlass = 137
+    /// The garden's inner door. Nothing breaks it; the garden opens it.
+    case gardenSeal = 138
+    // Two crops, four stages each, contiguous like wheat's so a stage
+    // advances by adding one to the raw value.
+    case lampBloomStage0 = 139, lampBloomStage1, lampBloomStage2, lampBloomStage3
+    case silverReedStage0 = 143, silverReedStage1, silverReedStage2, silverReedStage3
+    case silverThatch = 147
+
     // MARK: - Shaped-block predicates
 
     /// True for every case that does not fill its cell. The mesher's
@@ -548,10 +577,18 @@ enum BlockType: UInt8, CaseIterable {
     /// True for the cell that resets how far a signal has travelled rather
     /// than carrying it any differently than plain wire does.
     var isSignalRelay: Bool { self == .signalRelayOff || self == .signalRelayOn }
-    /// True for any of the four wheat growth stages.
+    /// True for any growth stage of any crop: wheat, and the garden's two.
     var isCrop: Bool {
-        rawValue >= BlockType.wheatStage0.rawValue && rawValue <= BlockType.wheatStage3.rawValue
+        (rawValue >= BlockType.wheatStage0.rawValue && rawValue <= BlockType.wheatStage3.rawValue)
+            || (rawValue >= BlockType.lampBloomStage0.rawValue && rawValue <= BlockType.silverReedStage3.rawValue)
     }
+    /// The last stage of a crop — the one worth harvesting, and the one
+    /// that never grows any further.
+    var isRipeCrop: Bool {
+        self == .wheatStage3 || self == .lampBloomStage3 || self == .silverReedStage3
+    }
+    /// The parts of a rocket standing on its pad.
+    var isRocket: Bool { self == .rocketEngine || self == .rocketTank || self == .rocketCabin }
     /// True for the plate that only ever carries what a lever tells it to.
     var isWire: Bool { self == .wireOff || self == .wireOn }
 
@@ -698,6 +735,14 @@ enum BlockType: UInt8, CaseIterable {
         // nothing at all.
         case .furnaceLit: return 9
         case .signalLampLit: return 15
+        // The station radio once it is mended, and the beacon it answers.
+        case .radioLit: return 10
+        // A glint, like the treasure ores: enough to spot a meteor crater
+        // across a dark field.
+        case .meteorOre: return 5
+        case .rocketEngine: return 4
+        case .lampBloomStage3: return 14
+        case .lampBloomStage2: return 6
         default: return 0
         }
     }
@@ -881,7 +926,7 @@ enum BlockType: UInt8, CaseIterable {
     /// buried, so it is derived from `isShaped` rather than enumerated.
     var isOpaque: Bool {
         switch self {
-        case .air, .water, .glass, .ice, .daylightSensor: return false
+        case .air, .water, .glass, .ice, .daylightSensor, .prismGlass: return false
         // The radiant lamps are stained glass with a light inside: you see
         // through them, faces behind them draw, and their own glow floods
         // out — `transmitsLight` follows from this being false.
@@ -940,7 +985,7 @@ enum BlockType: UInt8, CaseIterable {
     /// Rendered in the alpha-blended pass rather than the opaque one.
     var isTranslucent: Bool {
         switch self {
-        case .water, .glass, .glassPane, .ice,
+        case .water, .glass, .glassPane, .ice, .prismGlass,
              .radiantRed, .radiantYellow, .radiantGreen, .radiantCyan:
             return true
         default:
@@ -1051,6 +1096,16 @@ enum BlockType: UInt8, CaseIterable {
         case .glass: return 0.4
         case .ice: return 0.5
         case .cactus: return 0.4
+        case .radio, .radioLit, .plaque: return 3.0
+        case .meteorOre: return 9.0
+        case .padCore: return 4.0
+        case .rocketEngine, .rocketTank, .rocketCabin: return 2.0
+        case .airMaker: return 2.0
+        case .moonDust: return 0.5
+        case .moonRock, .moonBrick: return 4.0
+        case .prismGlass: return 0.6
+        case .gardenSeal: return .infinity
+        case .silverThatch: return 0.8
         // Instant, as the original's is. A block you are about to blow up is
         // not a block anyone should have to chew through first.
         case .tnt: return 0
@@ -1099,7 +1154,11 @@ enum BlockType: UInt8, CaseIterable {
         case .stone, .cobblestone, .sandstone, .sandstoneCarved, .brick, .obsidian,
              .coalOre, .ironOre, .goldOre, .diamondOre, .goldBlock, .diamondBlock,
              .seaStone, .sandstonePillar, .pillarCapital, .plaster,
-             .furnace, .furnaceLit, .hopper, .ice: return .pickaxe
+             .furnace, .furnaceLit, .hopper, .ice,
+             .radio, .radioLit, .plaque, .meteorOre, .padCore, .moonRock, .moonBrick,
+             .rocketEngine, .rocketTank, .rocketCabin, .airMaker: return .pickaxe
+        case .moonDust: return .shovel
+        case .silverThatch: return .axe
         default: return .none
         }
     }
@@ -1116,7 +1175,8 @@ enum BlockType: UInt8, CaseIterable {
         switch self {
         case .stone, .cobblestone, .coalOre, .sandstone, .sandstoneCarved, .brick,
              .seaStone, .sandstonePillar, .pillarCapital, .furnace, .furnaceLit, .hopper: return .wood
-        case .ironOre: return .stone
+        case .ironOre, .meteorOre: return .stone
+        case .moonRock, .moonBrick: return .wood
         case .goldOre, .diamondOre, .goldBlock, .diamondBlock: return .iron
         case .obsidian: return .diamond
         default: return .hand
@@ -1139,7 +1199,15 @@ enum BlockType: UInt8, CaseIterable {
         if isBed { return .bed }
         if isPane { return .glassPane }
         switch self {
-        case .air, .water, .lava, .bedrock, .ice: return nil
+        // Ice comes away whole: it is what a fuel cell is cooked from.
+        case .air, .water, .lava, .bedrock, .gardenSeal: return nil
+        case .ice: return .ice
+        case .meteorOre: return .rawMeteor
+        case .radio, .radioLit: return .radio
+        case .rocketEngine, .rocketTank, .rocketCabin: return .rocket
+        case .silverReedStage3: return .silverReed
+        case .lampBloomStage0, .lampBloomStage1, .lampBloomStage2, .lampBloomStage3: return .lampBloomSeeds
+        case .silverReedStage0, .silverReedStage1, .silverReedStage2: return .silverReedSeeds
         case .grass: return .dirt
         // Tilled ground gives up the dirt it was cut from — there is no
         // "farmland" item to speak of, the same way stairs give up cobble
@@ -1362,6 +1430,37 @@ enum BlockType: UInt8, CaseIterable {
             return .radiantYellow
         case .ice:
             return .water
+        case .radio:
+            switch face {
+            case .top, .bottom: return .hopperSide
+            case .side: return .radioFront
+            }
+        case .radioLit:
+            switch face {
+            case .top, .bottom: return .hopperSide
+            case .side: return .radioFrontLit
+            }
+        case .plaque: return .plaque
+        case .meteorOre: return .meteorOre
+        case .padCore:
+            switch face {
+            case .top: return .padTop
+            case .bottom, .side: return .hopperSide
+            }
+        case .rocketEngine: return face == .side ? .rocketEngine : .hopperSide
+        case .rocketTank: return face == .side ? .rocketHull : .hopperSide
+        case .rocketCabin: return face == .side ? .rocketWindow : .rocketHull
+        case .airMaker:
+            switch face {
+            case .top: return .airMakerTop
+            case .bottom, .side: return .airMakerSide
+            }
+        case .moonDust: return .moonDust
+        case .moonRock: return .moonRock
+        case .moonBrick: return .moonBrick
+        case .prismGlass: return .prismGlass
+        case .gardenSeal: return .gardenSeal
+        case .silverThatch: return .silverThatch
         // Unreachable — see the note in `hardness`.
         default: return .stone
         }
@@ -1381,6 +1480,13 @@ enum BlockType: UInt8, CaseIterable {
         case .sapling: return .sapling
         case .birchSapling: return .birchSapling
         case .spruceSapling: return .spruceSapling
+        case .lampBloomStage0, .silverReedStage0: return .gardenSprout
+        case .lampBloomStage1: return .lampBloomStage1
+        case .lampBloomStage2: return .lampBloomStage2
+        case .lampBloomStage3: return .lampBloomStage3
+        case .silverReedStage1: return .silverReedStage1
+        case .silverReedStage2: return .silverReedStage2
+        case .silverReedStage3: return .silverReedStage3
         default: return .tallGrass
         }
     }
@@ -1395,6 +1501,10 @@ enum BlockType: UInt8, CaseIterable {
             case .deadBush: return L10n.t("Dead Bush", "Torr buske")
             case .wheatStage0, .wheatStage1, .wheatStage2, .wheatStage3:
                 return L10n.t("Wheat", "Vete")
+            case .lampBloomStage0, .lampBloomStage1, .lampBloomStage2, .lampBloomStage3:
+                return L10n.t("Lamp Bloom", "Lampblomma")
+            case .silverReedStage0, .silverReedStage1, .silverReedStage2, .silverReedStage3:
+                return L10n.t("Silver Reed", "Silvervass")
             case .torch: return L10n.t("Torch", "Fackla")
             case .boosterNorthSouth, .boosterEastWest:
                 return L10n.t("Powered Rail", "Drivskena")
@@ -1475,6 +1585,18 @@ enum BlockType: UInt8, CaseIterable {
         case .balloonCanvas: return L10n.t("Balloon Canvas", "Ballongduk")
         case .furnace, .furnaceLit: return L10n.t("Furnace", "Ugn")
         case .ice: return L10n.t("Ice", "Is")
+        case .radio, .radioLit: return L10n.t("Radio", "Radio")
+        case .plaque: return L10n.t("Plaque", "Skylt")
+        case .meteorOre: return L10n.t("Meteor Ore", "Meteormalm")
+        case .padCore: return L10n.t("Launch Pad", "Startplatta")
+        case .rocketEngine, .rocketTank, .rocketCabin: return L10n.t("Rocket", "Raket")
+        case .airMaker: return L10n.t("Air Maker", "Luftmaskin")
+        case .moonDust: return L10n.t("Moon Dust", "Månstoft")
+        case .moonRock: return L10n.t("Moon Rock", "Månsten")
+        case .moonBrick: return L10n.t("Moon Brick", "Måntegel")
+        case .prismGlass: return L10n.t("Prism Glass", "Prismaglas")
+        case .gardenSeal: return L10n.t("Garden Door", "Trädgårdsport")
+        case .silverThatch: return L10n.t("Silver Thatch", "Silvertak")
         // Unreachable — see the note in `hardness`.
         default: return "Block"
         }
@@ -1485,6 +1607,7 @@ enum BlockType: UInt8, CaseIterable {
     /// in.
     var isInteractive: Bool {
         self == .craftingTable || self == .chest || isDoor || isBed || isLever
+            || self == .radio || self == .radioLit || isRocket
     }
 
     /// Looks a block up by its Swift case name, for the scripted-edit hooks

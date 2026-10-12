@@ -18,6 +18,9 @@ struct BlockPlacement: Sendable {
 /// thread, and always agree at their seams.
 struct WorldGenerator {
     let seed: UInt64
+    /// Which place this generates. The Moon shares nothing with the home
+    /// world but the seed arithmetic — see `LunarTerrain.swift`.
+    let kind: Destination
     static let seaLevel = 62
 
     /// The highest the ground may come, and the two heights above which
@@ -39,14 +42,15 @@ struct WorldGenerator {
     static let highestSnowCap = 126
     static let highestTree = 112
 
-    private let continentNoise: ValueNoise
-    private let hillNoise: ValueNoise
+    let continentNoise: ValueNoise
+    let hillNoise: ValueNoise
     private let temperatureNoise: ValueNoise
     private let caveNoise: ValueNoise
     private let caveNoise2: ValueNoise
 
-    init(seed: UInt64) {
+    init(seed: UInt64, kind: Destination = .home) {
         self.seed = seed
+        self.kind = kind
         continentNoise = ValueNoise(seed: seed &+ 1)
         hillNoise = ValueNoise(seed: seed &+ 2)
         temperatureNoise = ValueNoise(seed: seed &+ 3)
@@ -74,6 +78,7 @@ struct WorldGenerator {
     /// terrain is a flat plain, because nothing changes within the few
     /// hundred blocks the player can actually see.
     func surfaceHeight(x: Int, z: Int) -> Int {
+        if kind == .moon { return lunarSurfaceHeight(x: x, z: z) }
         let fx = Double(x), fz = Double(z)
         let continent = continentNoise.sample(fx * 0.0115, fz * 0.0115)
         let hills = hillNoise.sample(fx * 0.045, fz * 0.045)
@@ -94,6 +99,9 @@ struct WorldGenerator {
     }
 
     func biome(x: Int, z: Int) -> Biome {
+        // Nothing on the Moon lives by biome; plains is the one answer
+        // that asks nothing of anybody.
+        if kind == .moon { return .plains }
         let height = surfaceHeight(x: x, z: z)
         let temp = temperature(x: x, z: z)
         if height < WorldGenerator.seaLevel - 1 { return .ocean }
@@ -208,6 +216,10 @@ struct WorldGenerator {
     /// Fills a freshly-allocated chunk with terrain, water, ores and caves.
     /// Trees are a separate pass because they cross chunk borders.
     func generate(_ chunk: Chunk) {
+        if kind == .moon {
+            generateLunar(chunk)
+            return
+        }
         for lz in 0..<Chunk.depth {
             for lx in 0..<Chunk.width {
                 let wx = chunk.originX + lx
@@ -299,6 +311,7 @@ struct WorldGenerator {
     /// surface height) for all 256 columns, plus a 7×7 local-maximum roll
     /// around every candidate trunk.
     func decorationBlocks(in chunk: Chunk) -> [BlockPlacement] {
+        if kind == .moon { return [] }
         // Ground cover first, trees second. Both write to the cell just
         // above the surface, and the caller applies these in order, so this
         // is what lets a trunk stand where a tuft of grass was rolled
@@ -453,7 +466,7 @@ struct WorldGenerator {
     /// `World.floorDivide` exists: a region west or south of the origin
     /// has to resolve to the region actually under it, not to the one a
     /// truncating divide would round it toward.
-    private static func floorDivide(_ value: Int, by divisor: Int) -> Int {
+    static func floorDivide(_ value: Int, by divisor: Int) -> Int {
         let quotient = value / divisor
         return (value % divisor != 0 && (value < 0) != (divisor < 0)) ? quotient - 1 : quotient
     }

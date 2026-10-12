@@ -289,6 +289,20 @@ enum ItemIcons {
             drawChestplate(context, tier: .iron)
         case .diamondChestplate:
             drawChestplate(context, tier: .diamond)
+        case .signalCore:
+            drawGem(context, color: rgb(1.0, 0.72, 0.26), highlight: rgb(1.0, 0.95, 0.70))
+        case .rawMeteor:
+            drawNugget(context, color: rgb(0.40, 0.38, 0.62), highlight: rgb(0.66, 0.68, 0.95))
+        case .meteorIngot:
+            drawIngot(context, color: rgb(0.52, 0.54, 0.86), highlight: rgb(0.80, 0.84, 1.0))
+        case .rocket:
+            drawRocket(context)
+        case .spaceSuit:
+            drawSpaceSuit(context)
+        case .fuelCell:
+            drawFuelCell(context)
+        case .silverReed:
+            drawReed(context)
         default:
             if let toolClass = item.toolClass {
                 drawTool(context, toolClass: toolClass, tier: item.toolTier)
@@ -700,6 +714,62 @@ enum ItemIcons {
         context.addLine(to: CGPoint(x: sheet.maxX - 4, y: sheet.maxY - 2))
         context.closePath()
         context.fillPath()
+    }
+
+    private static func drawRocket(_ context: CGContext) {
+        // Nose cone, white body with a window, red fins, a flame.
+        context.setFillColor(rgb(0.86, 0.22, 0.18).cgColor)
+        context.move(to: CGPoint(x: 8, y: 15))
+        context.addLine(to: CGPoint(x: 10.5, y: 11))
+        context.addLine(to: CGPoint(x: 5.5, y: 11))
+        context.closePath()
+        context.fillPath()
+        context.setFillColor(rgb(0.92, 0.93, 0.95).cgColor)
+        context.fill(CGRect(x: 5.5, y: 4, width: 5, height: 7))
+        context.setFillColor(rgb(0.24, 0.50, 0.80).cgColor)
+        context.fillEllipse(in: CGRect(x: 6.5, y: 7, width: 3, height: 3))
+        context.setFillColor(rgb(0.86, 0.22, 0.18).cgColor)
+        context.fill(CGRect(x: 3.5, y: 3, width: 2, height: 4))
+        context.fill(CGRect(x: 10.5, y: 3, width: 2, height: 4))
+        context.setFillColor(rgb(0.98, 0.62, 0.18).cgColor)
+        context.fill(CGRect(x: 6.5, y: 1, width: 3, height: 3))
+    }
+
+    private static func drawSpaceSuit(_ context: CGContext) {
+        // A white torso and helmet with a gold visor.
+        context.setFillColor(rgb(0.90, 0.91, 0.93).cgColor)
+        context.fill(CGRect(x: 4, y: 2, width: 8, height: 7))
+        context.fill(CGRect(x: 2, y: 5, width: 2, height: 4))
+        context.fill(CGRect(x: 12, y: 5, width: 2, height: 4))
+        context.fillEllipse(in: CGRect(x: 4.5, y: 8.5, width: 7, height: 7))
+        context.setFillColor(rgb(0.95, 0.72, 0.24).cgColor)
+        context.fillEllipse(in: CGRect(x: 6, y: 10, width: 4, height: 3.5))
+        context.setFillColor(rgb(0.86, 0.22, 0.18).cgColor)
+        context.fill(CGRect(x: 6, y: 4, width: 4, height: 1))
+    }
+
+    private static func drawFuelCell(_ context: CGContext) {
+        // A stubby canister with a frosty blue window and a cap.
+        context.setFillColor(rgb(0.58, 0.60, 0.64).cgColor)
+        context.fill(CGRect(x: 4, y: 2, width: 8, height: 11))
+        context.setFillColor(rgb(0.40, 0.42, 0.46).cgColor)
+        context.fill(CGRect(x: 6, y: 13, width: 4, height: 2))
+        context.setFillColor(rgb(0.48, 0.82, 0.98).cgColor)
+        context.fill(CGRect(x: 6, y: 4, width: 4, height: 7))
+        context.setFillColor(rgb(0.88, 0.97, 1.0).cgColor)
+        context.fill(CGRect(x: 6, y: 9, width: 1, height: 2))
+    }
+
+    private static func drawReed(_ context: CGContext) {
+        context.setStrokeColor(rgb(0.80, 0.84, 0.90).cgColor)
+        context.setLineWidth(1)
+        for (x0, x1) in [(5.0, 4.0), (8.0, 8.5), (11.0, 12.0)] {
+            context.move(to: CGPoint(x: x0, y: 1))
+            context.addLine(to: CGPoint(x: x1, y: 14))
+            context.strokePath()
+        }
+        context.setFillColor(rgb(0.96, 0.97, 1.0).cgColor)
+        context.fill(CGRect(x: 7.5, y: 13, width: 2, height: 2))
     }
 
     private static func drawGem(_ context: CGContext, color: NSColor, highlight: NSColor) {

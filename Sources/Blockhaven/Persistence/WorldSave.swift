@@ -103,6 +103,19 @@ struct WorldSave: Codable, Sendable {
     /// nothing else in the world marks where it stands.
     var pendingGraves: [SavedGraveKey]?
 
+    /// Which of the save's two places this file's top level describes.
+    /// Absent in every save written before the Moon existed, which is
+    /// exactly what `home` means.
+    var destination: Destination?
+    /// The storyline's journal. It belongs to the player, so it is written
+    /// beside the inventory rather than inside either world.
+    var story: StoryState?
+    /// The other place, asleep: everything about it but the player, who is
+    /// here. Empty until the first launch. An array because a struct cannot
+    /// hold an optional copy of itself directly; it never holds more than
+    /// one.
+    var elsewhere: [WorldSave]?
+
     /// One chunk of the edit journal as two parallel arrays: `blocks[i]`
     /// is what sits at packed local index `indices[i]`. A dictionary keyed
     /// by a stringified index would cost several times the bytes for the
@@ -231,6 +244,7 @@ struct WorldSave: Codable, Sendable {
         case bedSpawnX, bedSpawnY, bedSpawnZ
         case lastGraveX, lastGraveY, lastGraveZ
         case pendingGraves
+        case destination, story, elsewhere
         case chests, furnaces, hoppers, minecarts, animals
         case equippedChestplateRaw = "equippedChestplate"
     }
@@ -281,6 +295,11 @@ struct WorldSave: Codable, Sendable {
         minecarts = try container.decodeIfPresent([SavedMinecart].self, forKey: .minecarts)
         animals = try container.decodeIfPresent([SavedAnimal].self, forKey: .animals)
         equippedChestplateRaw = try container.decodeIfPresent(String.self, forKey: .equippedChestplateRaw)
+        // A journal this build cannot read is a journal lost, not a world
+        // lost: the story starts over and the world keeps everything else.
+        destination = try? container.decodeIfPresent(Destination.self, forKey: .destination)
+        story = try? container.decodeIfPresent(StoryState.self, forKey: .story)
+        elsewhere = try? container.decodeIfPresent([WorldSave].self, forKey: .elsewhere)
     }
 
     /// The saved respawn bed, and only when all three coordinates made it

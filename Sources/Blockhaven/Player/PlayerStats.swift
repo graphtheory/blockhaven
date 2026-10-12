@@ -11,6 +11,10 @@ struct PlayerStats {
     private(set) var health = PlayerStats.maxHealth
     private(set) var hunger = PlayerStats.maxHunger
     private(set) var air = PlayerStats.maxAir
+    /// How much air the lungs — or the suit — hold. A space suit on the
+    /// Moon holds six breaths' worth of the home world's.
+    var airCapacity = PlayerStats.maxAir
+    static let suitAirCapacity = PlayerStats.maxAir * 6
 
     /// The one thing worn rather than held — set only by `equip`, not by
     /// anything in `update`, because it changes on a right-click, not on a
@@ -62,7 +66,7 @@ struct PlayerStats {
     mutating func reset() {
         health = PlayerStats.maxHealth
         hunger = PlayerStats.maxHunger
-        air = PlayerStats.maxAir
+        air = airCapacity
         exhaustion = 0
         regenTimer = 0
         starveTimer = 0
@@ -79,7 +83,7 @@ struct PlayerStats {
         reset()
         self.health = min(PlayerStats.maxHealth, max(1, health))
         self.hunger = min(PlayerStats.maxHunger, max(0, hunger))
-        self.air = min(PlayerStats.maxAir, max(0, air))
+        self.air = min(PlayerStats.suitAirCapacity, max(0, air))
         self.equippedChestplate = equippedChestplate
     }
 
@@ -89,6 +93,7 @@ struct PlayerStats {
     mutating func update(
         dt: Double, distanceMoved: Double, isSprinting: Bool, isSubmerged: Bool, isInLava: Bool
     ) {
+        air = min(air, airCapacity)
         exhaustion += distanceMoved * (isSprinting ? 0.10 : 0.03)
         while exhaustion >= 4.0 {
             exhaustion -= 4.0
@@ -128,7 +133,7 @@ struct PlayerStats {
             }
         } else {
             drownTimer = 0
-            air = PlayerStats.maxAir
+            air = airCapacity
         }
 
         // No grace period, unlike drowning: there is no air to spend

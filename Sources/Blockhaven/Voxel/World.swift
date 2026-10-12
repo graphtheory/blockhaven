@@ -166,11 +166,14 @@ final class World {
     /// Tracks industrial and excavation disturbance levels across chunks.
     let disturbance = DisturbanceTracker()
 
-    init(seed: UInt64 = 20260823, edits: [ChunkCoord: [Int: BlockType]] = [:]) {
+    init(seed: UInt64 = 20260823, edits: [ChunkCoord: [Int: BlockType]] = [:], kind: Destination = .home) {
         self.seed = seed
-        self.generator = WorldGenerator(seed: seed)
+        self.generator = WorldGenerator(seed: seed, kind: kind)
         self.editJournal = edits
     }
+
+    /// True on the Moon: no air, no weather, everything exposed freezes.
+    var isLunar: Bool { generator.kind == .moon }
 
     // MARK: - Coordinates
 
@@ -806,6 +809,10 @@ final class World {
     /// turns up keeps the old guarantee intact for the rare seed where
     /// none exists nearby at all, rather than searching forever.
     func spawnPosition() -> Vector3 {
+        if isLunar {
+            // Beside the landing pad at the origin, not on top of the rocket.
+            return Vector3(2.5, CGFloat(generator.surfaceHeight(x: 0, z: 0) + 1), 0.5)
+        }
         if let wooded = firstColumn(matching: { x, z, height in
             height > WorldGenerator.seaLevel + 1 && WorldGenerator.treeBiomes.contains(generator.biome(x: x, z: z))
         }) {
@@ -880,7 +887,7 @@ extension World {
     func canFreeze(atWorldX x: Int, y: Int, worldZ z: Int) -> Bool {
         guard block(worldX: x, y: y, worldZ: z) == .water else { return false }
         guard isSkyOpen(worldX: x, y: y, worldZ: z) else { return false }
-        let isCold = (generator.biome(x: x, z: z) == .snowy) || (y > 85)
+        let isCold = isLunar || (generator.biome(x: x, z: z) == .snowy) || (y > 85)
         guard isCold else { return false }
         guard !isNearThermalSource(worldX: x, y: y, worldZ: z, radius: 3) else { return false }
         return true

@@ -79,6 +79,8 @@ enum SDLWidgets {
 /// rows `PauseMenuView` offers on the Mac.
 final class SDLPauseScreen {
     var warning: String?
+    /// The storyline's journal, drawn down the left side.
+    var journal: [String] = []
     var onResume: (() -> Void)?
     var onMainMenu: (() -> Void)?
     var onQuit: (() -> Void)?
@@ -109,6 +111,10 @@ final class SDLPauseScreen {
     func draw(app: SDLApp) {
         defer { pointer.endFrame() }
         SDLWidgets.dim(app)
+        for (index, line) in journal.enumerated() {
+            let colour: UIRenderer.Color = line.hasPrefix("[x]") ? .init(0.62, 0.86, 0.56) : .white
+            app.text.draw(app.ui, line, x: 24, y: 40 + Float(index) * 20, size: index == 0 ? 14 : 10, color: colour)
+        }
         let width: Float = 360
         let x = ((app.ui.width - width) / 2).rounded()
         let gap: Float = 10

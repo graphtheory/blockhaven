@@ -40,7 +40,17 @@ struct SkeletonManager {
     private var spawnTimer: Double = 0
     private var rng: SeededGenerator
 
-    private let enabled: Bool
+    var enabled: Bool
+
+    /// The Moon's version of the population: the garden's old maintenance
+    /// sentries. They do not burn in the sun and do not wait for night —
+    /// they come where there is live wire, mistaking it for a fault, and
+    /// power down and leave when the wire goes dead.
+    var sentryMode = false
+    /// Live wire cells a sentry may come to inspect, refreshed by the
+    /// session about once a second.
+    var sentryAnchors: [Vector3] = []
+    static let sentryCap = 2
 
     init(mode: GameMode, seed: UInt64) {
         self.enabled = mode.spawnsHostileMobs
@@ -56,8 +66,16 @@ struct SkeletonManager {
         world: World
     ) -> [Shot] {
         guard enabled else { return [] }
+        // A sentry acts as though it is always night — it never burns —
+        // and the whole population powers down when no wire is live.
+        let isNight = sentryMode ? true : isNight
+        if sentryMode, sentryAnchors.isEmpty, !skeletons.isEmpty { skeletons.removeAll() }
 
-        trySpawn(dt: dt, playerEye: playerEye, isNight: isNight, isRaining: isRaining, world: world)
+        if sentryMode {
+            trySpawnSentry(dt: dt, playerEye: playerEye, world: world)
+        } else {
+            trySpawn(dt: dt, playerEye: playerEye, isNight: isNight, isRaining: isRaining, world: world)
+        }
 
         let distanceFromSpawn = (playerEye - world.spawnPosition()).length()
 
@@ -141,6 +159,31 @@ struct SkeletonManager {
         guard isNight, skeletons.count < cap else { return }
 
         for _ in 0..<6 where spawnOne(playerEye: playerEye, world: world) { return }
+    }
+
+    /// A sentry turns up on open ground near live wire — never closer to
+    /// the player than a dozen blocks, so its scanning light is seen
+    /// before its shot is, and never under a roof, so it never appears
+    /// inside a room someone sealed.
+    private mutating func trySpawnSentry(dt: Double, playerEye: Vector3, world: World) {
+        spawnTimer -= dt
+        guard spawnTimer <= 0 else { return }
+        spawnTimer = SkeletonManager.spawnInterval * 3
+        guard skeletons.count < SkeletonManager.sentryCap, !sentryAnchors.isEmpty else { return }
+        for _ in 0..<6 {
+            let anchor = sentryAnchors[Int(Double.random(in: 0..<1, using: &rng) * Double(sentryAnchors.count))]
+            let angle = Double.random(in: 0..<1, using: &rng) * 2 * .pi
+            let distance = 4 + Double.random(in: 0..<1, using: &rng) * 6
+            let x = Int((anchor.x + CGFloat(cos(angle) * distance)).rounded(.down))
+            let z = Int((anchor.z + CGFloat(sin(angle) * distance)).rounded(.down))
+            guard let y = groundHeight(worldX: x, worldZ: z, world: world),
+                  world.isSkyOpen(worldX: x, y: y, worldZ: z) else { continue }
+            let position = Vector3(CGFloat(x) + 0.5, CGFloat(y), CGFloat(z) + 0.5)
+            guard (position - playerEye).length() > 12 else { continue }
+            nextID += 1
+            skeletons[nextID] = Skeleton(position: position, seed: UInt64(nextID) &* 0xA24BAED4963EE407)
+            return
+        }
     }
 
     private mutating func spawnOne(playerEye: Vector3, world: World) -> Bool {

@@ -100,7 +100,7 @@ struct AnimalManager {
 
     /// Animals exist in both modes, so this is only ever false if a future
     /// mode turns them off.
-    private let enabled: Bool
+    var enabled: Bool
 
     init(mode: GameMode, seed: UInt64) {
         self.enabled = mode.spawnsPassiveMobs

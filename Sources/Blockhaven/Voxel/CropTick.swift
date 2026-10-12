@@ -82,17 +82,17 @@ final class CropStore {
     /// sees the sky is the same one deciding whether anything grows in
     /// it — a field still has to be a field, open to the sky, not just a
     /// patch of tilled dirt in a basement.
-    func tick(dt: Double, world: World, isRaining: Bool = false) -> [Key] {
+    func tick(dt: Double, world: World, isRaining: Bool = false, canGrow: ((Key) -> Bool)? = nil) -> [Key] {
         var advanced: [Key] = []
         for (key, time) in elapsed {
             let block = world.block(worldX: key.x, y: key.y, worldZ: key.z)
-            guard block.isCrop, block != .wheatStage3 else {
+            guard block.isCrop, !block.isRipeCrop else {
                 elapsed.removeValue(forKey: key)
                 continue
             }
             let hasLight = world.isSkyOpen(worldX: key.x, y: key.y, worldZ: key.z)
                 || world.lightLevel(worldX: key.x, y: key.y, worldZ: key.z) >= 9
-            guard hasLight else { continue }
+            guard hasLight, canGrow?(key) ?? true else { continue }
             var multiplier = 1.0
             if isRaining { multiplier *= CropStore.rainGrowthMultiplier }
             if CropStore.isHydrated(at: key, world: world) { multiplier *= CropStore.hydratedGrowthMultiplier }

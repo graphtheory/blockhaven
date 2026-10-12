@@ -131,7 +131,9 @@ final class SkyController {
             zenith: graded.zenith,
             horizon: graded.horizon,
             cameraPosition: eye,
-            dt: dt
+            dt: dt,
+            beacon: clock.beacon,
+            lunar: clock.isLunar
         )
     }
 

@@ -22,6 +22,10 @@ enum FurnaceRecipe {
         case .mutton: return .cookedMutton
         case .chicken: return .cookedChicken
         case .rawCod: return .cookedCod
+        case .rawMeteor: return .meteorIngot
+        // Ice is fuel: cooked down, it is what a rocket burns.
+        case .ice: return .fuelCell
+        case .moonRock: return .moonBrick
         default: return nil
         }
     }

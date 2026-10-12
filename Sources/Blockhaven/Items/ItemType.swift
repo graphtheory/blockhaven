@@ -157,6 +157,14 @@ enum ItemType: String, CaseIterable, Hashable {
     // instead, ready to capture a different one. See `RegionFill.Blueprint`.
     case blueprint
 
+    // The survival storyline's hardware and harvest — see
+    // `specs/survival-storyline.md`. Appended, like every case: a saved
+    // slot is its raw value.
+    case radio, signalCore, rawMeteor, meteorIngot
+    case launchPad, rocket, spaceSuit, fuelCell, airMaker
+    case ice, moonDust, moonRock, moonBrick, prismGlass
+    case lampBloomSeeds, silverReedSeeds, silverReed, silverThatch
+
     /// The block this item places, if any.
     var placedBlock: BlockType? {
         switch self {
@@ -220,6 +228,17 @@ enum ItemType: String, CaseIterable, Hashable {
         case .birchSapling: return .birchSapling
         case .spruceSapling: return .spruceSapling
         case .wheatSeeds: return .wheatStage0
+        case .radio: return .radio
+        case .launchPad: return .padCore
+        case .airMaker: return .airMaker
+        case .ice: return .ice
+        case .moonDust: return .moonDust
+        case .moonRock: return .moonRock
+        case .moonBrick: return .moonBrick
+        case .prismGlass: return .prismGlass
+        case .silverThatch: return .silverThatch
+        case .lampBloomSeeds: return .lampBloomStage0
+        case .silverReedSeeds: return .silverReedStage0
         default: return nil
         }
     }
@@ -292,6 +311,18 @@ enum ItemType: String, CaseIterable, Hashable {
         case .birchSapling: return .birchSapling
         case .spruceSapling: return .spruceSapling
         case .wheatStage0, .wheatStage1, .wheatStage2, .wheatStage3: return .wheatSeeds
+        case .radio, .radioLit: return .radio
+        case .padCore: return .launchPad
+        case .rocketEngine, .rocketTank, .rocketCabin: return .rocket
+        case .airMaker: return .airMaker
+        case .ice: return .ice
+        case .moonDust: return .moonDust
+        case .moonRock: return .moonRock
+        case .moonBrick: return .moonBrick
+        case .prismGlass: return .prismGlass
+        case .silverThatch: return .silverThatch
+        case .lampBloomStage0, .lampBloomStage1, .lampBloomStage2, .lampBloomStage3: return .lampBloomSeeds
+        case .silverReedStage0, .silverReedStage1, .silverReedStage2, .silverReedStage3: return .silverReedSeeds
         default: return nil
         }
     }
@@ -312,7 +343,7 @@ enum ItemType: String, CaseIterable, Hashable {
 
     /// True for the two chestplates — the only items worn rather than held.
     var isArmor: Bool {
-        self == .ironChestplate || self == .diamondChestplate
+        self == .ironChestplate || self == .diamondChestplate || self == .spaceSuit
     }
 
     /// Fraction of incoming mitigable damage a worn chestplate cuts, or
@@ -326,6 +357,8 @@ enum ItemType: String, CaseIterable, Hashable {
         switch self {
         case .ironChestplate: return 0.20
         case .diamondChestplate: return 0.40
+        // Built for air, not for a fight.
+        case .spaceSuit: return 0.10
         default: return 0
         }
     }
@@ -392,7 +425,7 @@ enum ItemType: String, CaseIterable, Hashable {
     }
 
     var displayName: String {
-        if let block = placedBlock { return block.displayName }
+        if let block = placedBlock, !block.isCrop { return block.displayName }
         switch self {
         case .oakStairs: return L10n.t("Oak Stairs", "Ektrappa")
         case .cobbleStairs: return L10n.t("Cobblestone Stairs", "Kullerstenstrappa")
@@ -429,6 +462,15 @@ enum ItemType: String, CaseIterable, Hashable {
         case .compass: return L10n.t("Compass", "Kompass")
         case .masonLine: return L10n.t("Mason's Line", "Murarlina")
         case .blueprint: return L10n.t("Blueprint", "Ritning")
+        case .signalCore: return L10n.t("Signal Core", "Signalkärna")
+        case .rawMeteor: return L10n.t("Raw Meteor", "Rå meteor")
+        case .meteorIngot: return L10n.t("Meteor Ingot", "Meteortacka")
+        case .rocket: return L10n.t("Rocket", "Raket")
+        case .spaceSuit: return L10n.t("Space Suit", "Rymddräkt")
+        case .fuelCell: return L10n.t("Fuel Cell", "Bränslecell")
+        case .silverReed: return L10n.t("Silver Reed", "Silvervass")
+        case .lampBloomSeeds: return L10n.t("Lamp Bloom Seeds", "Lampblomsfrön")
+        case .silverReedSeeds: return L10n.t("Silver Reed Seeds", "Silvervassfrön")
         case .pressurePlate: return L10n.t("Pressure Plate", "Tryckplatta")
         case .rail: return L10n.t("Rail", "Räls")
         case .poweredRail: return L10n.t("Powered Rail", "Drivskena")

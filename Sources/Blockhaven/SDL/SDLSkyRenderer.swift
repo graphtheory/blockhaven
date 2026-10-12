@@ -42,6 +42,8 @@ final class SDLSkyRenderer {
             uniform vec3 uSun;
             uniform float uLow;
             uniform float uNight;
+            uniform float uBeacon;
+            uniform float uLunar;
             out vec4 fragColor;
 
             const vec3 kSunGlow = vec3(1.0, 0.84, 0.58);
@@ -88,8 +90,16 @@ final class SDLSkyRenderer {
                 float moonCos = dot(dir, -normalize(uSun));
                 float moonDisc = smoothstep(0.99955, 0.99975, moonCos);
                 float moonGlow = pow(max(0.0, moonCos), 400.0) * 0.25;
-                color += vec3(0.86, 0.90, 1.0) * (moonDisc * 0.95 + moonGlow) * smoothstep(-0.10, 0.02, -uSun.y);
+                vec3 moonTint = mix(vec3(0.86, 0.90, 1.0), vec3(0.42, 0.68, 1.0), uLunar);
+                color += moonTint * (moonDisc * 0.95 + moonGlow) * smoothstep(-0.10, 0.02, -uSun.y);
+                // The point of light on the other body: the garden asking,
+                // seen from home, or home answering, seen from the Moon.
+                vec3 beaconDir = normalize(-normalize(uSun) + vec3(0.0, 0.0105, 0.0));
+                float beaconCos = dot(dir, beaconDir);
+                color += vec3(1.0, 0.86, 0.45) * uBeacon * (smoothstep(0.999988, 0.999995, beaconCos) * 2.0
+                    + pow(max(0.0, beaconCos), 30000.0) * 0.8);
 
+                if (uLunar > 0.5) { color = max(color, vec3(0.0)); }
                 fragColor = vec4(color, 1.0);
             }
             """
@@ -97,7 +107,8 @@ final class SDLSkyRenderer {
         glGenVertexArrays(1, &vao)
     }
 
-    func draw(view: Matrix4, projection: Matrix4, grade: SkyClock.Grade, timeOfDay: Double, eye: SIMD3<Float>, time: Float) {
+    func draw(view: Matrix4, projection: Matrix4, grade: SkyClock.Grade, timeOfDay: Double, eye: SIMD3<Float>, time: Float,
+              beacon: Float = 0, lunar: Bool = false) {
         // The camera's basis is the rows of the view matrix's rotation.
         let c = view.columns
         let right = SIMD3(c.0.x, c.1.x, c.2.x)
@@ -123,7 +134,9 @@ final class SDLSkyRenderer {
         program.set("uHorizon", linearFromSRGB(grade.horizon))
         program.set("uSun", sun)
         program.set("uLow", low)
-        program.set("uNight", night)
+        program.set("uNight", lunar ? 1 : night)
+        program.set("uBeacon", beacon)
+        program.set("uLunar", Float(lunar ? 1 : 0))
         glBindVertexArray(vao)
         glDrawArrays(GL_TRIANGLES, 0, 3)
         glBindVertexArray(0)

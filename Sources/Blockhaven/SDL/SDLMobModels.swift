@@ -64,7 +64,7 @@ final class SDLMobModels {
         for (id, skeleton) in session.skeletons.skeletons {
             let gait = stride(.skeleton(id), at: skeleton.position, dt: dt, reference: 1.2)
             skeletonBoxes(at: skeleton.position, facing: Float(skeleton.facing), hurt: skeleton.isHurt,
-                          gait: gait, into: &out)
+                          gait: gait, skin: session.world.isLunar ? "sentry" : "skeleton", into: &out)
         }
         for (id, animal) in session.animals.animals {
             let kind = animal.kind
@@ -149,13 +149,13 @@ final class SDLMobModels {
     }
 
     private func skeletonBoxes(at p: Vector3, facing: Float, hurt: Bool,
-                               gait: (phase: Float, swing: Float), into out: inout [Placed]) {
-        let bone = skinned("skeleton.body")
+                               gait: (phase: Float, swing: Float), skin: String, into out: inout [Placed]) {
+        let bone = skinned("\(skin).body")
         let legH: Float = 0.75, bodyH: Float = 0.7, head: Float = 0.45
         out.append(box(origin: p, facing: facing, centre: SIMD3(0, legH + bodyH / 2, 0),
                        size: SIMD3(0.45, bodyH, 0.22), faces: bone, flash: hurt))
         out.append(box(origin: p, facing: facing, centre: SIMD3(0, legH + bodyH + head / 2, 0),
-                       size: SIMD3(repeating: head), faces: skinned("skeleton.body", front: "skeleton.face"), flash: hurt))
+                       size: SIMD3(repeating: head), faces: skinned("\(skin).body", front: "\(skin).face"), flash: hurt))
         // Each arm swings against the leg on its own side.
         for dx in [Float(-0.12), 0.12] {
             let swing = sin(gait.phase + (dx < 0 ? 0 : .pi)) * 0.5 * gait.swing

@@ -20,14 +20,17 @@ final class SkeletonEntity {
     let root = Entity()
     private let body = Entity()
     private var parts: [ModelEntity] = []
+    /// The Moon's maintenance sentry wears the same frame in dark metal.
+    private let sentry: Bool
 
-    init() {
+    init(sentry: Bool = false) {
+        self.sentry = sentry
         root.addChild(body)
         build()
     }
 
     private func build() {
-        let skin = SkeletonEntity.skinMaterial
+        let skin = sentry ? SkeletonEntity.sentryMaterial : SkeletonEntity.skinMaterial
         let legY = SkeletonEntity.legHeight / 2
         let bodyY = SkeletonEntity.legHeight + SkeletonEntity.bodyHeight / 2
         let headY = SkeletonEntity.legHeight + SkeletonEntity.bodyHeight + SkeletonEntity.headSize / 2
@@ -38,7 +41,9 @@ final class SkeletonEntity {
         )
         addBox(
             size: SIMD3(repeating: SkeletonEntity.headSize),
-            at: SIMD3(0, headY, 0), materials: SkeletonEntity.headFaceMaterials, splitFaces: true
+            at: SIMD3(0, headY, 0),
+            materials: sentry ? SkeletonEntity.sentryHeadMaterials : SkeletonEntity.headFaceMaterials,
+            splitFaces: true
         )
 
         // Two legs, narrow, directly under the body — no splay, unlike a
@@ -86,17 +91,26 @@ final class SkeletonEntity {
         guard next != tint else { return }
         tint = next
         for (index, part) in parts.enumerated() {
-            part.model?.materials = SkeletonEntity.materials(for: next, partIndex: index)
+            part.model?.materials = SkeletonEntity.materials(for: next, partIndex: index, sentry: sentry)
         }
     }
 
-    private static func materials(for tint: Tint, partIndex: Int) -> [any Material] {
+    private static func materials(for tint: Tint, partIndex: Int, sentry: Bool) -> [any Material] {
         let isHead = partIndex == 1
         switch tint {
-        case .plain: return isHead ? headFaceMaterials : skinMaterials
+        case .plain:
+            if sentry { return isHead ? sentryHeadMaterials : [sentryMaterial] }
+            return isHead ? headFaceMaterials : skinMaterials
         case .hurt: return isHead ? headHurtMaterials : hurtMaterials
         }
     }
+
+    private static let sentryMaterial: UnlitMaterial = unlit(texture(SkeletonSkin.sentryBody), tint: .white)
+    private static let sentryHeadMaterials: [any Material] = {
+        var faces: [any Material] = Array(repeating: sentryMaterial, count: 6)
+        faces[frontFaceIndex] = unlit(texture(SkeletonSkin.sentryFace), tint: .white)
+        return faces
+    }()
 
     private static let skinMaterials: [any Material] = [skinMaterial]
     private static let hurtMaterials: [any Material] = [hurtMaterial]

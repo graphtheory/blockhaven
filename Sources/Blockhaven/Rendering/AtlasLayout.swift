@@ -114,6 +114,26 @@ enum AtlasTile: Int, CaseIterable {
     case hopperTop
     case hopperSide
 
+    // The Sleeping Garden's cubes: the old network's radio and plaques,
+    // the expedition's hardware, the Moon's own ground, and the thatch
+    // the silver reed is woven into.
+    case radioFront
+    case radioFrontLit
+    case plaque
+    case meteorOre
+    case padTop
+    case rocketHull
+    case rocketWindow
+    case rocketEngine
+    case airMakerTop
+    case airMakerSide
+    case moonDust
+    case moonRock
+    case moonBrick
+    case prismGlass
+    case gardenSeal
+    case silverThatch
+
     // Tiles only *shaped* blocks sample. They are stored once, at full
     // brightness, rather than at `shadeLevels` brightnesses like everything
     // above — see `isShaded`.
@@ -176,6 +196,16 @@ enum AtlasTile: Int, CaseIterable {
     case signalTorchOn
     case signalRelayOff
     case signalRelayOn
+
+    // The garden's two crops: one sprout they share, then three stages
+    // each — the lamp bloom opening into light, the reed silvering.
+    case gardenSprout
+    case lampBloomStage1
+    case lampBloomStage2
+    case lampBloomStage3
+    case silverReedStage1
+    case silverReedStage2
+    case silverReedStage3
 
     /// Whether the sheet holds this tile at every brightness or only at
     /// full brightness.

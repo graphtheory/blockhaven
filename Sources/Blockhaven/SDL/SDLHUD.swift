@@ -187,7 +187,7 @@ final class SDLHUD {
                 sprites.draw(ui, food >= 2 ? .drumstick : (food == 1 ? .halfDrumstick : .emptyDrumstick),
                              x: originX + total - icon - 2 - Float(9 - index) * spacing, y: barY, size: icon)
             }
-            if state.air < PlayerStats.maxAir {
+            if state.air < PlayerStats.maxAir || state.isLunar {
                 for index in 0..<10 where state.air > index * 2 {
                     sprites.draw(ui, .bubble, x: originX + total - icon - 2 - Float(9 - index) * spacing,
                                  y: barY - 20, size: icon)
@@ -217,6 +217,22 @@ final class SDLHUD {
         }
 
         if let bearing = state.compassBearing { drawCompass(bearing: Float(bearing), state: state, app: app) }
+
+        // KEEPER's voice, amber, near the top; the tracked objective small
+        // in the top-left corner when the debug readout is not there.
+        if let line = state.keeperLine {
+            let size: Float = 12
+            let w = text.width(line, size: size)
+            let x = ((width - w) / 2).rounded()
+            ui.rect(x: x - 12, y: 104 - 8, width: w + 24, height: size + 16, color: .init(0.02, 0.02, 0.02, 0.66))
+            text.draw(ui, line, x: x, y: 104, size: size, color: .init(1.0, 0.80, 0.38))
+        }
+        if let objective = state.objective, state.debugText == nil {
+            let line = "> " + objective
+            let w = text.width(line, size: 10)
+            ui.rect(x: 8, y: 8, width: w + 14, height: 22, color: .init(0.04, 0.04, 0.04, 0.5))
+            text.draw(ui, line, x: 15, y: 14, size: 10)
+        }
 
         if let debug = state.debugText {
             var y: Float = 10

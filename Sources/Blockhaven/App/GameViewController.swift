@@ -202,6 +202,12 @@ final class GameViewController: NSViewController {
                 if session.tableWalkedAway() { closeInventory() }
             } else {
                 session.updatePlay(dt: dt, input: input)
+                // A rocket reached the dark of its fade: the other place
+                // takes over, and this controller is about to be torn down.
+                if let next = session.takeTravelRequest() {
+                    onTravel?(next)
+                    return
+                }
                 switch session.takeScreenRequest() {
                 case .crafting(let gridSize): openInventory(gridSize: gridSize)
                 case .chest(let chest): openChest(chest)
@@ -321,7 +327,7 @@ final class GameViewController: NSViewController {
             if let existing = skeletonEntities[id] {
                 entity = existing
             } else {
-                entity = SkeletonEntity()
+                entity = SkeletonEntity(sentry: session.world.isLunar)
                 worldAnchor.addChild(entity.root)
                 skeletonEntities[id] = entity
             }
@@ -466,6 +472,7 @@ final class GameViewController: NSViewController {
 
         let screen = PauseMenuView(frame: view.bounds)
         screen.autoresizingMask = [.width, .height]
+        screen.journal = session.journalLines()
         // An autosave that failed while the player was playing had nowhere
         // to say so. This is the screen that promises the world is saved, so
         // it is the screen that has to take it back.
@@ -536,6 +543,8 @@ final class GameViewController: NSViewController {
     /// back — none of which this controller can do to itself, since it is
     /// the thing being taken apart.
     var onReturnToMenu: (() -> Void)?
+    /// Called with the session for the other place when a rocket lands.
+    var onTravel: ((GameSession) -> Void)?
     /// Swap the game between fullscreen and a window, and read back which
     /// it is. Both belong to whoever owns the window — this controller
     /// owns a world, not a screen.

@@ -292,6 +292,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         startMenu = nil
         window.title = AppDelegate.windowTitle(controller.worldName)
         controller.onReturnToMenu = { [weak self] in self?.returnToMenu() }
+        controller.onTravel = { [weak self] next in self?.travel(to: next) }
         controller.onToggleWindowMode = { [weak self] in
             guard let self else { return }
             setFullscreen(!isFullscreen)
@@ -305,6 +306,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.contentViewController = controller
         window.setFrame(frame, display: true)
         window.makeFirstResponder(controller.view)
+    }
+
+    /// A rocket landed: the place left behind is already folded into the
+    /// new session's save, so it is taken apart without writing, and the
+    /// other place is opened in its stead. Deferred a turn of the run loop
+    /// so the old controller's frame finishes before it is torn down.
+    func travel(to next: GameSession) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let controller = self.game else { return }
+            controller.teardown()
+            self.game = nil
+            self.startGame(GameViewController(session: next))
+        }
     }
 
     /// Saves the world, takes it apart, and puts the start menu back.

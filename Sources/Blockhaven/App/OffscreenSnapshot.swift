@@ -147,7 +147,15 @@ final class SnapshotAppDelegate: NSObject, NSApplicationDelegate {
         // is the only way to look at the landmarks at all, since they are
         // built nowhere else.
         let demoSite = environment["BLOCKHAVEN_SNAPSHOT_DEMO"] != nil
-        world = demoSite ? World(seed: DemoWorld.seed) : World()
+        // `BLOCKHAVEN_SNAPSHOT_STORY=moon` shoots the Moon with its landing
+        // pad and the Sleeping Garden built; `=home` the home world with the
+        // survey station and the three sites, and the beacon lit on the Moon.
+        let storyShot = environment["BLOCKHAVEN_SNAPSHOT_STORY"]
+        if storyShot == "moon" {
+            world = World(seed: GameSession.moonSeed(for: World().seed), kind: .moon)
+        } else {
+            world = demoSite ? World(seed: DemoWorld.seed) : World()
+        }
         // How much world this capture builds, in chunks. `_RADIUS` is the
         // explicit cheap-capture override and wins whenever it is set;
         // otherwise a run that asked for a render distance gets the one it
@@ -187,6 +195,28 @@ final class SnapshotAppDelegate: NSObject, NSApplicationDelegate {
         // The site goes in before anything is generated, so the ring of
         // chunks below arrives with it already in the journal.
         if demoSite { DemoWorld.build(in: world) }
+        switch storyShot {
+        case "moon":
+            sky.clock.isLunar = true
+            sky.clock.beaconSteady = true
+            _ = StoryBuilder.buildMoonLanding(world)
+            _ = StoryBuilder.buildGarden(world)
+        case "home":
+            sky.clock.beaconSteady = true
+            let spawn = world.spawnPosition()
+            let site = StoryBuilder.stationSite(world, spawn: (Int(spawn.x), Int(spawn.z)))
+            let station = StoryBuilder.buildStation(world, at: site)
+            StandardError.write(Data("[snapshot] station radio at \(station.radio.x),\(station.radio.y),\(station.radio.z)\n".utf8))
+            for (name, radio) in [
+                ("spire", StoryBuilder.buildSpire(world, near: site)),
+                ("vault", StoryBuilder.buildVault(world, near: site)),
+                ("wreck", StoryBuilder.buildWreck(world, near: site)),
+            ] {
+                StandardError.write(Data("[snapshot] \(name) radio at \(radio.x),\(radio.y),\(radio.z)\n".utf8))
+            }
+        default:
+            break
+        }
 
         // Choose the eye first so the right chunks get built.
         var eye = (demoSite ? DemoWorld.spawn : world.spawnPosition())

@@ -31,7 +31,7 @@ if StreamBenchmark.isRequested || ShapedBlockCheck.isRequested
     || LavaCheck.isRequested || SkeletonCheck.isRequested || SkeletonStressCheck.isRequested || MasonCheck.isRequested
     || CavernCheck.isRequested || ArmorCheck.isRequested || BlueprintCheck.isRequested
     || VaultCheck.isRequested || SpireCheck.isRequested || WreckCheck.isRequested
-    || GraveCheck.isRequested || SaveAllCheck.isRequested
+    || GraveCheck.isRequested || SaveAllCheck.isRequested || StoryCheck.isRequested
     || ProcessInfo.processInfo.environment["BLOCKHAVEN_MODE"] != nil {
     setEnvironment("BLOCKHAVEN_LANGUAGE", "en", overwrite: false)
 }
@@ -271,6 +271,11 @@ if GraveCheck.isRequested { GraveCheck.run() }
 // survive being written into the *same* file and read back together, not
 // just each on its own. Worlds and every store at once, no window.
 if SaveAllCheck.isRequested { SaveAllCheck.run() }
+
+// And the storyline, end to end: a radio, three pieces, a rocket, a Moon
+// with air in it, a garden woken, and a seed grown at home — through the
+// same session code the game runs, with both worlds in one save at the end.
+if StoryCheck.isRequested { StoryCheck.run() }
 
 // Worlds and settings saved under the game's earlier name come across
 // once, before either front end reads a save. See LegacyMigration.

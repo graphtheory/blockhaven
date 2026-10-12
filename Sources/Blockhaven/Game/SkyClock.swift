@@ -102,8 +102,41 @@ final class SkyClock {
             daylight: rgb(0.92, 0.74, 0.62)),
     ]
 
+    // MARK: The light on the Moon
+
+    /// True on the Moon: a black sky by day as well as by night, no
+    /// weather, and the home world hanging where the Moon would be.
+    var isLunar = false
+    /// True once the storyline is over. The beacon stops asking and simply
+    /// shines, and the home world shows a light of its own.
+    var beaconSteady = false
+    /// Seconds the clock has run, for the blink.
+    private(set) var elapsed: Double = 0
+
+    /// How bright the point of light on the other body is, 0…1.
+    ///
+    /// From home it blinks the garden's request — three short, one long —
+    /// until the story is over. From the Moon the home world shows nothing
+    /// until then, and a steady light after.
+    var beacon: Float {
+        if beaconSteady { return 1 }
+        if isLunar { return 0 }
+        return SkyClock.blink(at: elapsed)
+    }
+
+    /// Three short flashes and one long one, every five seconds.
+    static func blink(at time: Double) -> Float {
+        let phase = time.truncatingRemainder(dividingBy: 5)
+        switch phase {
+        case 0..<0.3, 0.6..<0.9, 1.2..<1.5: return 1
+        case 2.1..<3.3: return 1
+        default: return 0
+        }
+    }
+
     /// Advances the clock by `dt` seconds of real time.
     func advance(dt: Double) {
+        elapsed += dt
         timeOfDay += dt / SkyClock.dayLength
         if timeOfDay >= 1 {
             timeOfDay -= 1
@@ -158,7 +191,7 @@ final class SkyClock {
     /// repeats every single day, which would make it rain the same hours
     /// every day forever; `dayIndex` is what turns that into an actual
     /// multi-day cycle.
-    var isRaining: Bool { SkyClock.isRaining(at: Double(dayIndex) + timeOfDay) }
+    var isRaining: Bool { !isLunar && SkyClock.isRaining(at: Double(dayIndex) + timeOfDay) }
 
     /// The same question about a clock reading that is not this object's —
     /// crop growth asks it from a headless check.
@@ -197,6 +230,16 @@ final class SkyClock {
             horizon: lower.horizon + (upper.horizon - lower.horizon) * t,
             daylight: lower.daylight + (upper.daylight - lower.daylight) * t
         )
+        if isLunar {
+            // No air to scatter the light: the sky is black at noon, and
+            // the sun falls on the ground white rather than gold.
+            let white = SIMD3<Float>(repeating: (graded.daylight.x + graded.daylight.y + graded.daylight.z) / 3)
+            return Grade(
+                zenith: SIMD3<Float>(0.01, 0.01, 0.025),
+                horizon: SIMD3<Float>(0.03, 0.03, 0.05),
+                daylight: white
+            )
+        }
         guard isRaining else { return graded }
         // Rain grades the same three colours toward a flat overcast grey
         // rather than drawing anything new — the whole sky and every block

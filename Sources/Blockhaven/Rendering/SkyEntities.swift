@@ -125,6 +125,16 @@ final class SkyEntities {
 
     private lazy var sun = ModelEntity(mesh: SkyEntities.quadMesh(size: SkyEntities.sunSize), materials: [sunMaterial])
     private lazy var moon = ModelEntity(mesh: SkyEntities.quadMesh(size: SkyEntities.moonSize), materials: [moonMaterial])
+    /// The point of light on the other body: the garden's beacon seen from
+    /// home, or home's own light seen from the Moon. A plain square, so at
+    /// this distance it reads as a spark rather than a shape.
+    private lazy var beaconDot = ModelEntity(
+        mesh: SkyEntities.quadMesh(size: 7),
+        materials: [SkyEntities.skinMaterial(nil, tint: SIMD3(1.0, 0.86, 0.45), opacity: 1,
+                                             sampler: SkyEntities.smoothSampler, writesDepth: false)]
+    )
+    /// Whether the moon disc is currently tinted as the home world.
+    private var tintedAsHome = false
     private let clouds = CloudLayer()
 
     /// Which slice of the day the current tints were built for, or -1 when
@@ -138,6 +148,7 @@ final class SkyEntities {
         if SkyEntities.domeTexture != nil { anchor.addChild(dome) }
         anchor.addChild(sun)
         anchor.addChild(moon)
+        anchor.addChild(beaconDot)
         anchor.addChild(clouds.entity)
     }
 
@@ -151,7 +162,9 @@ final class SkyEntities {
         zenith: SIMD3<Float>,
         horizon: SIMD3<Float>,
         cameraPosition: SIMD3<Float>,
-        dt: Double
+        dt: Double,
+        beacon: Float = 0,
+        lunar: Bool = false
     ) {
         // 0.25 (noon) -> angle 0 -> straight up. 0.75 (midnight) -> angle
         // pi -> straight down. The moon runs the same arc, offset by half a
@@ -159,6 +172,19 @@ final class SkyEntities {
         let sunAngle = SkyEntities.sunAngle(at: timeOfDay)
         place(sun, around: cameraPosition, angle: sunAngle)
         place(moon, around: cameraPosition, angle: sunAngle + .pi)
+        // A little off the disc's centre, toward its upper edge, and a
+        // little nearer than the disc so it always draws in front of it.
+        let moonDirection = SkyEntities.sunDirection(angle: sunAngle + .pi + 0.035)
+        beaconDot.position = cameraPosition + moonDirection * (SkyEntities.orbitRadius - 3)
+        beaconDot.orientation = simd_quatf(from: SIMD3(0, 0, 1), to: -moonDirection)
+        beaconDot.isEnabled = beacon > 0.5
+        // From the Moon, what hangs in the sky is home — and there are no
+        // clouds to drift across it.
+        clouds.entity.isEnabled = !lunar
+        if lunar != tintedAsHome {
+            tintedAsHome = lunar
+            gradedSlice = -1
+        }
         // Transform-only, so this can move every frame for free.
         sun.scale = .init(repeating: 1 + SkyEntities.sunHorizonSwell * SkyEntities.lowSun(sunAngle))
 
@@ -254,7 +280,7 @@ final class SkyEntities {
         retint(
             &moonMaterial,
             SkyEntities.moonTexture,
-            blend(SIMD3(1, 1, 1), SIMD3(0.86, 0.90, 1.0), night),
+            tintedAsHome ? SIMD3(0.42, 0.68, 1.0) : blend(SIMD3(1, 1, 1), SIMD3(0.86, 0.90, 1.0), night),
             sampler: SkyEntities.smoothSampler
         )
         moon.model?.materials = [moonMaterial]

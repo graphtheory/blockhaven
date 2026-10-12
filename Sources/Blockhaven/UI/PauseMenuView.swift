@@ -34,6 +34,11 @@ final class PauseMenuView: NSView {
     /// didn't reach the disk. It replaces the footer rather than joining
     /// it: "your world is saved either way out" is exactly the sentence
     /// being contradicted.
+    /// The storyline's journal, one line each — empty where there is none.
+    var journal: [String] = [] {
+        didSet { needsDisplay = true }
+    }
+
     var warning: String? {
         didSet {
             guard warning != oldValue else { return }
@@ -150,6 +155,18 @@ final class PauseMenuView: NSView {
 
         for row in Row.allCases {
             drawRow(context, row: row, hovered: hoveredRow == row)
+        }
+
+        // The storyline's journal, down the left side: what is done and
+        // what is still to do.
+        for (index, line) in journal.enumerated() {
+            drawText(line,
+                     at: NSPoint(x: 28, y: bounds.maxY - 48 - CGFloat(index) * 22),
+                     font: index == 0 ? .systemFont(ofSize: 17, weight: .bold) : .systemFont(ofSize: 13),
+                     color: line.hasPrefix("[x]")
+                        ? NSColor(calibratedRed: 0.62, green: 0.86, blue: 0.56, alpha: 1)
+                        : NSColor(calibratedWhite: 0.92, alpha: 1),
+                     centred: false)
         }
 
         // Inside the panel, in the space under the rows: these keys are
