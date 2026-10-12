@@ -50,7 +50,7 @@ struct SkeletonManager {
     /// Live wire cells a sentry may come to inspect, refreshed by the
     /// session about once a second.
     var sentryAnchors: [Vector3] = []
-    static let sentryCap = 2
+    static let sentryCap = 1
 
     init(mode: GameMode, seed: UInt64) {
         self.enabled = mode.spawnsHostileMobs

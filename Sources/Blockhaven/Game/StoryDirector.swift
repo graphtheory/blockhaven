@@ -198,8 +198,12 @@ extension GameSession {
     }
 
     private func useRadio(at cell: StoryCell, block: BlockType) {
-        // The station's radio: dead until a glow crystal is put in it.
-        if cell == story.station || (story.station == nil && destination == .home) {
+        // The station's radio: dead until a glow crystal is put in it. Any
+        // radio on the home world will do while none has been mended, so a
+        // station radio carried off and set down elsewhere — or one built
+        // from the recipe — can never strand the story.
+        let isSite = story.sites.contains { $0.radio == cell }
+        if cell == story.station || (!story.radioRepaired && destination == .home && !isSite) {
             if story.radioRepaired || block == .radioLit {
                 if story.station == nil { story.station = cell }
                 story.radioRepaired = true
@@ -385,6 +389,15 @@ extension GameSession {
             say(Keeper.sealHolds)
             return true
         }
+        // The old network's radios are bolted down: the station's, and any
+        // site's that still holds its piece.
+        if hit.block == .radio || hit.block == .radioLit {
+            let holdsPiece = story.sites.contains { $0.radio == cell && !story.hasPiece($0.piece) }
+            if (cell == story.station && destination == .home) || holdsPiece {
+                showToast(L10n.t("This radio is bolted down", "Den här radion sitter fast"), seconds: 2)
+                return true
+            }
+        }
         if hit.block.isRocket || hit.block == .padCore {
             let pad = hit.block == .padCore ? cell : StoryBuilder.pad(under: cell, in: world)
             if destination == .moon, let pad, pad == story.moonPad {
@@ -473,8 +486,12 @@ extension GameSession {
         say(lines[wakingStep])
         switch wakingStep {
         case 1:
+            // Growing light that needs no sun: the roof beside each lamp
+            // turns to glow crystal.
             for lamp in garden.lamps {
-                world.setBlock(worldX: lamp.x, y: lamp.y + 2, worldZ: lamp.z, to: .glowCrystal)
+                for dx in [-1, 1] {
+                    world.setBlock(worldX: lamp.x + dx, y: lamp.y, worldZ: lamp.z, to: .glowCrystal)
+                }
             }
         case 2:
             for cell in garden.shutters where world.block(worldX: cell.x, y: cell.y, worldZ: cell.z) == .moonBrick {
@@ -627,10 +644,15 @@ extension GameSession {
             storyTickAccumulator = 0
             if world.isLunar {
                 sweepAir()
-                // Live wire draws the garden's old sentries.
-                skeletons.sentryAnchors = signals.poweredCells.prefix(64).compactMap { key in
-                    world.block(worldX: key.x, y: key.y, worldZ: key.z) == .wireOn
-                        ? Vector3(CGFloat(key.x) + 0.5, CGFloat(key.y), CGFloat(key.z) + 0.5) : nil
+                // Live wire round the garden draws its old sentries. Their
+                // patrol never strayed from the garden, so a player's own
+                // base by the landing pad is left alone.
+                let home = StoryBuilder.gardenCentre
+                skeletons.sentryAnchors = signals.poweredCells.compactMap { key in
+                    let dx = key.x - home.x, dz = key.z - home.z
+                    guard dx * dx + dz * dz < 40 * 40,
+                          world.block(worldX: key.x, y: key.y, worldZ: key.z) == .wireOn else { return nil }
+                    return Vector3(CGFloat(key.x) + 0.5, CGFloat(key.y), CGFloat(key.z) + 0.5)
                 }
                 if !story.breathedOnMoon, breathable.contains(where: { _ in true }), isBreathing,
                    !nearRocketOnly {
@@ -759,8 +781,8 @@ extension GameSession {
             var hints: [String] = []
             for fault in left {
                 switch fault {
-                case .light: hints.append(L10n.t("NO LIGHT: the roof wire is broken — long wire needs a relay",
-                                                 "INGET LJUS: takets ledning är av — lång ledning behöver ett relä"))
+                case .light: hints.append(L10n.t("NO LIGHT: dig out the sun sensors on the ridge, mend the roof wire — long wire needs a relay",
+                                                 "INGET LJUS: gräv fram solsensorerna på åsen, laga takets ledning — lång ledning behöver ett relä"))
                 case .water: hints.append(L10n.t("NO WATER: fill the channel (ice melts by a torch)",
                                                  "INGET VATTEN: fyll rännan (is smälter vid en fackla)"))
                 case .growth: hints.append(L10n.t("NOTHING GROWS: seal the nursery, give it air and light, grow wheat",

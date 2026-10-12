@@ -510,6 +510,13 @@ enum RecipeBook {
         ]), output: ItemStack(.airMaker)),
         Recipe(pattern: .shapeless([.silverReed, .silverReed, .silverReed, .silverReed]),
                output: ItemStack(.silverThatch, count: 4)),
+        // A furnace from the Moon's own rock, since there is no cobblestone
+        // there to build the usual one from.
+        Recipe(pattern: .shaped([
+            [.moonRock, .moonRock, .moonRock],
+            [.moonRock, nil, .moonRock],
+            [.moonRock, .moonRock, .moonRock],
+        ]), output: ItemStack(.furnace)),
     ]
 
     /// Set by the world in play: false until its journal holds all three

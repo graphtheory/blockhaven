@@ -232,6 +232,34 @@ and `BLOCKHAVEN_CHECK_CREATIVE=1` asserts both, along with every palette
 cell being clickable and a chest's contents surviving a round trip to
 disk.
 
+## The storyline
+
+A new survival world has a story in it: a light blinking on the Moon, a dead
+radio in a survey station near spawn, three old machines to find — on top of
+a spire, in a buried vault, in a wreck on the sea floor — then a launch pad,
+a rocket, and a garden on the Moon to wake up. The design is
+`specs/survival-storyline.md`; nothing of it touches creative or the demo
+world, and you can ignore it and just play.
+
+- **Home.** A glow crystal mends the radio. Each machine teaches one part of
+  the rocket, and the objective line points at the nearest one left; with
+  all three the expedition recipes unlock.
+- **The trip.** Build the pad, stand the rocket on it, load two fuel cells
+  (ice in a furnace), arm it, launch. One cell is kept for the way home. The
+  inventory goes with you; the home world waits exactly as you left it.
+- **The Moon.** Low gravity, no air, a black sky. A space suit holds six
+  breaths' worth of air; a sealed, powered room with an air maker holds it
+  for good.
+  The garden has three faults — light, water, growth — fixed with wire,
+  ice and torches, and seeds. Sentries come to inspect live wire.
+- **The end.** Pull the lever, take the seeds home, plant them. The blink in
+  the sky turns steady.
+
+The pause screen keeps a journal of where you are. Harness knobs:
+`BLOCKHAVEN_STORY_START=moon` starts a new world on the Moon,
+`BLOCKHAVEN_SNAPSHOT_STORY=moon|home` frames a snapshot there, and
+`BLOCKHAVEN_NO_STORY=1` turns it off.
+
 ## How it's built
 
 The world (`Voxel/World.swift`) streams 16×16×128 chunks around the player.

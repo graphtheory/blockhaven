@@ -1569,6 +1569,10 @@ final class GameSession {
         // removes it. In survival, drops respect the tool requirement:
         // mining stone bare-handed still clears the block but yields
         // nothing.
+        // The garden's two plants seed themselves: a ripe one gives back a
+        // seed beside its harvest, so one planting becomes a bed of them.
+        if mode.collectsDrops, block == .lampBloomStage3 { inventory.add(ItemStack(.lampBloomSeeds)) }
+        if mode.collectsDrops, block == .silverReedStage3 { inventory.add(ItemStack(.silverReedSeeds)) }
         guard mode.collectsDrops, let drop = block.drop else { return }
         let tier = inventory.heldItem?.toolTier ?? .hand
         if block.requiresTool, tier < block.minimumTier { return }

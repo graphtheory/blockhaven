@@ -3,9 +3,10 @@
 Blockhaven's survival storyline: a home, a signal, a rocket, and a garden on
 the Moon that has been waiting for someone to bring it a seed.
 
-Status: design. Nothing here is implemented. Everything here is sized so that
-each step ends with something playable, because the game is for a kid who
-wants to play it tonight, not for a release in a year.
+Status: implemented — all six slices below are in the game. `Game/Story.swift`
+holds the state and KEEPER's lines, `World/StoryBuilder.swift` builds the
+places, `Game/StoryDirector.swift` runs it, and `BLOCKHAVEN_CHECK_STORY=1`
+plays it from the first radio to the last seed.
 
 ## The story in six pictures
 
@@ -271,7 +272,7 @@ content.
 
 ## Build order
 
-Each slice ends with something the kid can play and is meant to fit in a
+Each slice ends with something playable and is meant to fit in a
 burst of a few sessions. Ship each one before starting the next.
 
 1. **The blink.** A blinking dot on the Moon and the survey station with a

@@ -254,6 +254,34 @@ enum StoryCheck {
         report.check("mended wire lights the hall at noon", moon.story.isFixed(.light),
                      "lamps: \(garden.lamps.map { "\(block(moon, $0))" }.joined(separator: ", "))")
 
+        // Live wire round the garden draws a sentry, on open ground; dead
+        // wire sends it away.
+        moon.player.recall(to: landedAt)
+        moon.updateStory(dt: 1.01)
+        var sentrySeconds = 0.0
+        // Small steps, the way frames run: one half-second step would
+        // carry a fresh spawn straight through a one-block roof.
+        while moon.skeletons.skeletons.isEmpty, sentrySeconds < 60 {
+            moon.updateSkeletons(dt: 0.05)
+            sentrySeconds += 0.05
+        }
+        for _ in 0..<10 { moon.updateSkeletons(dt: 0.05) }
+        let sentry = moon.skeletons.skeletons.values.first
+        let sentryOutside = sentry.map {
+            moon.world.isSkyOpen(worldX: Int(floor($0.position.x)), y: Int(floor($0.position.y)), worldZ: Int(floor($0.position.z)))
+        } ?? false
+        let sentryCell = sentry.map { "\(Int(floor($0.position.x))),\($0.position.y),\(Int(floor($0.position.z))) on \(block(moon, StoryCell(Int(floor($0.position.x)), Int(floor($0.position.y)) - 1, Int(floor($0.position.z)))))" } ?? "none"
+        report.check("live wire draws a sentry onto open ground", sentry != nil && sentryOutside,
+                     "\(moon.skeletons.sentryAnchors.count) live cells, sentry after \(sentrySeconds) s at \(sentryCell)")
+        moon.sky.setTimeOfDay(0.75)
+        moon.signals.updateDaylightSensors(world: moon.world, sky: moon.sky, fuses: moon.fuses)
+        moon.signals.recompute(world: moon.world, fuses: moon.fuses)
+        moon.updateStory(dt: 1.01)
+        moon.updateSkeletons(dt: 0.5)
+        report.check("dead wire powers the sentries down", moon.skeletons.skeletons.isEmpty,
+                     "\(moon.skeletons.skeletons.count) left at midnight")
+        moon.sky.setTimeOfDay(0.25)
+
         // Water: ice in the channel, a torch beside it, the thermal tick.
         for cell in garden.reservoir { set(moon, cell.x, cell.y, cell.z, .ice) }
         set(moon, garden.reservoir[2].x, garden.reservoir[2].y + 1, garden.reservoir[2].z + 2, .torch)
