@@ -248,7 +248,11 @@ jobs:
           @{ version = $env:GAME_VERSION; windows = @{ url = "http://127.0.0.1:8765/Blockhaven-Setup.exe"; size = $size } } |
             ConvertTo-Json | Set-Content serve/version.json
           $server = Start-Process python -ArgumentList "-m", "http.server", "8765", "--bind", "127.0.0.1", "--directory", "serve" -PassThru -WindowStyle Hidden
-          Start-Sleep 3
+          # The game gives the manifest four seconds, so the server has to be
+          # answering before the game starts, not merely launched.
+          Wait-For "the local update server to answer" {
+            try { (Invoke-WebRequest http://127.0.0.1:8765/version.json -UseBasicParsing -TimeoutSec 2).StatusCode -eq 200 } catch { $false }
+          }
           # The runner has no GPU: Mesa's software OpenGL beside the exe, as
           # in the window test. The update replaces the folder, so the new
           # version comes up without it and stops at the driver dialog —
