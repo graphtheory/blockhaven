@@ -47,7 +47,7 @@ what `BLOCKHAVEN_SNAPSHOT_REGRADE` exists for.
 ### Taking your own
 
 ```
-Tools/gallery.sh                    # all four, about ten seconds
+Tools/gallery.sh                    # every shot, under a minute
 Tools/gallery.sh sundown
 ```
 

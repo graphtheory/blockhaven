@@ -12,7 +12,7 @@
 # like.
 #
 #   Tools/gallery.sh                 # all of them
-#   Tools/gallery.sh eiffel pyramid  # just these
+#   Tools/gallery.sh sundown atlantis  # just these
 #
 # Captures land at 1920x1080 in a scratch directory and are downsampled to
 # 1600px JPEGs in docs/screenshots. That needs ImageMagick; without it the
@@ -41,13 +41,23 @@ mkdir -p "$OUT" "$SCRATCH"
 #
 # Render distance is passed twice on purpose: _RADIUS decides how much world
 # is built and where the fog ends, and RENDER_DISTANCE is what the live game
-# reads. Sixteen rather than the shipped ten wherever a landmark has to be
-# seen from far enough away to fit in the frame.
+# reads. Every shot uses 14, the farthest the game itself will draw, so the
+# gallery is the game at its best settings and never further than it can see.
+#
+# The first four open the README; the rest are the website's gallery too.
 SHOTS=(
-"burj-khalifa-sunset|_DEMO=1 _RADIUS=10 _POS=-42,78,-72 _YAW=180 _PITCH=25 _TIME=0.5"
-"sun-over-the-lake|_RADIUS=16 _POS=0,92,0 _YAW=90 _PITCH=-3 _TIME=0.47"
-"great-pyramid-dawn|_DEMO=1 _RADIUS=10 _POS=75,80,38 _YAW=118 _PITCH=2 _TIME=0.03"
-"sundown|_RADIUS=16 _POS=-8,94,6 _YAW=92 _PITCH=-5 _TIME=0.505"
+"burj-khalifa-sunset|_DEMO=1 _RADIUS=14 _POS=-42,78,-72 _YAW=180 _PITCH=25 _TIME=0.5"
+"sun-over-the-lake|_RADIUS=14 _POS=0,92,0 _YAW=90 _PITCH=-3 _TIME=0.47"
+"great-pyramid-dawn|_DEMO=1 _RADIUS=14 _POS=75,80,38 _YAW=118 _PITCH=2 _TIME=0.03"
+"sundown|_RADIUS=14 _POS=-8,94,6 _YAW=92 _PITCH=-5 _TIME=0.505"
+"the-park-from-above|_DEMO=1 _RADIUS=14 _POS=10,95,95 _YAW=160 _PITCH=-6 _TIME=0.47"
+"city-in-the-sky|_DEMO=1 _RADIUS=14 _POS=-12,72,100 _YAW=0 _PITCH=12 _TIME=0.3"
+"twin-towers-at-dusk|_DEMO=1 _RADIUS=14 _POS=-142,100,-40 _YAW=180 _PITCH=14 _TIME=0.49"
+"eiffel-tower-sunset|_DEMO=1 _RADIUS=14 _POS=-10,70,40 _YAW=122 _PITCH=14 _TIME=0.45"
+"castle-at-night|_DEMO=1 _RADIUS=14 _POS=0,70,-8 _YAW=180 _PITCH=10 _TIME=0.62"
+"atlantis|_DEMO=1 _RADIUS=14 _REVEAL=1 _POS=-112,50,60 _YAW=270 _PITCH=-4 _TIME=0.3"
+"garden-on-the-moon|_STORY=moon _RADIUS=14 _POS=-10,75,-2 _YAW=82 _PITCH=-9 _TIME=0.3"
+"fizzlers-at-dusk|_FIZZLERS=1 _RADIUS=14 _YAW=130 _PITCH=-8 _TIME=0.53"
 )
 
 # Underwater and interior shots pass _REVEAL=1: a capture builds only the
@@ -80,7 +90,11 @@ for shot in "${SHOTS[@]}"; do
 	done
 
 	printf '%-22s ' "$name"
-	env "${env_args[@]}" "$BIN" >/dev/null 2>&1 || { echo "FAILED"; exit 1; }
+	# One retry: a window that comes up occluded renders no frames at all,
+	# and the second attempt almost always gets a visible one.
+	env "${env_args[@]}" "$BIN" >/dev/null 2>&1 \
+		|| env "${env_args[@]}" "$BIN" >/dev/null 2>&1 \
+		|| { echo "FAILED"; exit 1; }
 
 	if command -v magick >/dev/null; then
 		magick "$SCRATCH/$name.png" -resize 1600x -strip -quality 95 "$OUT/$name.jpg"
